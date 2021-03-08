@@ -22,6 +22,8 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 use symbolic_common::{Arch, ByteView, CpuFamily, DebugId, ParseDebugIdError, Uuid};
+use symbolic_unwind::evaluator::{evaluate, parsing, Constant, Expr, Identifier, Variable};
+use symbolic_unwind::*;
 
 use crate::cfi::CfiCache;
 use crate::utils;
@@ -84,6 +86,94 @@ extern "C" {
         state: *const IProcessState,
         size_out: *mut usize,
     ) -> *mut *const CodeModule;
+}
+
+#[no_mangle]
+unsafe extern "C" fn find_caller_regs_32(
+    registers: *const IRegVal,
+    registers_len: usize,
+    rule_string: *const c_char,
+    memory_base: u64,
+    memory_len: usize,
+    memory_bytes: *const u8,
+    is_big_endian: bool,
+    caller_registers_len_out: *mut usize,
+) -> *mut IRegVal {
+    if registers.is_null() || rule_string.is_null() || memory_bytes.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let mut variables = BTreeMap::new();
+    let mut constants = BTreeMap::new();
+
+    let memory = MemoryRegion {
+        base_addr: memory_base,
+        contents: std::slice::from_raw_parts(memory_bytes, memory_len),
+    };
+
+    let endian = if is_big_endian {
+        RuntimeEndian::Big
+    } else {
+        RuntimeEndian::Little
+    };
+
+    let registers = std::slice::from_raw_parts(registers, registers_len);
+
+    for IRegVal { name, value, size } in registers {
+        let value = match size {
+            4 => *value as u32,
+            _ => continue,
+        };
+
+        let name = CStr::from_ptr(*name).to_str().unwrap();
+        if let Ok(v) = name.parse::<Variable>() {
+            variables.insert(v, value);
+        } else if let Ok(c) = name.parse::<Constant>() {
+            constants.insert(c, value);
+        }
+    }
+
+    let rules: BTreeMap<Identifier, Expr<u32>> =
+        parsing::rules_complete(CStr::from_ptr(rule_string).to_str().unwrap())
+            .unwrap()
+            .into_iter()
+            .map(|rule| (rule.0, rule.1))
+            .collect();
+
+    let mut result = Vec::new();
+    // Put rule evaluation logic in Evaluator
+    let cfa_rule = rules.get(&Identifier::Const(Constant::cfa())).unwrap();
+    let cfa_val = evaluate(&cfa_rule, &constants, &variables, memory, endian)
+        .ok()
+        .unwrap();
+    constants.insert(Constant::cfa(), cfa_val);
+    result.push(IRegVal {
+        name: CString::new(".cfa").unwrap().into_raw() as *const c_char, // TODO: THIS LEAKS MEMORY
+        value: cfa_val.into(),
+        size: 4,
+    });
+
+    for (ident, expr) in &rules {
+        if let Ok(val) = evaluate::<u32, _>(expr, &constants, &variables, memory, endian) {
+            result.push(IRegVal {
+                name: CString::new(ident.to_string()).unwrap().into_raw() as *const c_char, // TODO: THIS LEAKS MEMORY
+                value: val.into(),
+                size: 4,
+            });
+        }
+    }
+
+    result.shrink_to_fit();
+    let len = result.len();
+    let ptr = result.as_mut_ptr();
+
+    if !caller_registers_len_out.is_null() {
+        *caller_registers_len_out = len;
+    }
+
+    std::mem::forget(result);
+
+    ptr
 }
 
 /// An error returned when parsing an invalid [`CodeModuleId`](struct.CodeModuleId.html).

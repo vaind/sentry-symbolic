@@ -47,7 +47,7 @@ fn main() {
         .file("third_party/breakpad/src/processor/basic_code_modules.cc")
         .file("third_party/breakpad/src/processor/basic_source_line_resolver.cc")
         .file("third_party/breakpad/src/processor/call_stack.cc")
-        .file("third_party/breakpad/src/processor/cfi_frame_info.cc")
+        //.file("third_party/breakpad/src/processor/cfi_frame_info.cc")
         .file("third_party/breakpad/src/processor/convert_old_arm64_context.cc")
         .file("third_party/breakpad/src/processor/disassembler_x86.cc")
         .file("third_party/breakpad/src/processor/dump_context.cc")
@@ -82,5 +82,6 @@ fn main() {
         .file("cpp/data_structures.cpp")
         .file("cpp/mmap_symbol_supplier.cpp")
         .file("cpp/processor.cpp")
+        .file("cpp/cfi_frame_info.cpp")
         .compile("breakpad");
 }
