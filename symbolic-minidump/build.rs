@@ -83,5 +83,6 @@ fn main() {
         .file("cpp/mmap_symbol_supplier.cpp")
         .file("cpp/processor.cpp")
         .file("cpp/cfi_frame_info.cpp")
+        .file("cpp/symbolic_source_line_resolver.cpp")
         .compile("breakpad");
 }

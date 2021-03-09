@@ -7,6 +7,7 @@
 #include "cpp/memstream.h"
 #include "cpp/mmap_symbol_supplier.h"
 #include "cpp/processor.h"
+#include "cpp/symbolic_source_line_resolver.h"
 
 using google_breakpad::BasicSourceLineResolver;
 using google_breakpad::Minidump;
@@ -29,10 +30,6 @@ process_state_t *process_minidump(const char *buffer,
         return nullptr;
     }
 
-    BasicSourceLineResolver resolver;
-    MmapSymbolSupplier supplier(symbol_count, symbols);
-    MinidumpProcessor processor(&supplier, &resolver);
-
     imemstream in(buffer, buffer_size);
     Minidump minidump(in);
     if (!minidump.Read()) {
@@ -41,6 +38,12 @@ process_state_t *process_minidump(const char *buffer,
         return nullptr;
     }
 
+    SymbolicSourceLineResolver resolver(minidump.is_big_endian());
+    MmapSymbolSupplier supplier(symbol_count, symbols);
+    MinidumpProcessor processor(&supplier, &resolver);
+
     *result_out = processor.Process(&minidump, state);
     return process_state_t::cast(state);
 }
+
+
