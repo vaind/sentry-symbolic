@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "symbolic*",
+    "dwarf-stats",
     "examples/*",
 ]
 
