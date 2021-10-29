@@ -40,6 +40,8 @@ source_locations: [{
 }]
 ```
 
+## Napkin math for space usage
+
 ```
 // sizeof() = 16 byte
 struct SourceLocation {
@@ -48,7 +50,31 @@ struct SourceLocation {
     function: u32, // <- index into array of all functions
     inlined_into: Option<u32>, // <- index into array of all source_locations
 }
+// sizeof() = 12 bytes
+struct Range {
+    start: u32,
+    end: u32,
+    source_location: u32, // index into array of all source_locations
+}
 ```
+
+Worst case, we have slightly more source_locations (because of inlining) than ranges.
+
+For `electron`, with ~12M of ranges, that means:
+(the executable itself is only 105M, DWARF size: 1.5G)
+
+- `(12 + 16 = 28) * 12M = 336M`
+- `(8 + 16 = 24) * 12M = 288M`
+
+Observations:
+
+- 99% of line numbers fit in u16
+- number of files (probably) fit in u16, but I don’t do cross-CU deduplication for those
+- how about function? _how many unique functions exist_ <-
+- `inlined_into` could fit in u16, probably if we sort by refcount, so the _referenced_ source locations
+  have a low index
+
+-> `(8 + 8 = 16) * 12M = 192M`
 
 ## Idea: only save end of range
 
