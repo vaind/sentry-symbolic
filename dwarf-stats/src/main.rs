@@ -13,11 +13,15 @@
 
 use gimli::{constants, IncompleteLineProgram};
 use object::{Object, ObjectSection};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::num::NonZeroU64;
 use std::{borrow, env, fs, mem, path};
 
+use crate::hist::Histogram;
+
 const SHF_EXECINSTR: u64 = 0x4;
+
+mod hist;
 
 fn main() {
     for path in env::args().skip(1) {
@@ -66,8 +70,9 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
     }
 
     let mut covered_range = 0;
-    let mut num_ranges = 0;
-    let mut addr_ranges: BTreeMap<u64, usize> = BTreeMap::new();
+    let mut addr_ranges = Histogram::new();
+    let mut lines = Histogram::new();
+    let mut num_files = 0;
 
     // Iterate over the compilation units.
     let mut iter = dwarf.units();
@@ -76,6 +81,8 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
 
         // Construct LineRow Sequences.
         let sequences = unit.line_program.clone().and_then(parse_line_program);
+
+        let mut files = HashSet::new();
 
         // Iterate over the Debugging Information Entries (DIEs) in the unit.
         // let mut depth = 0;
@@ -126,11 +133,15 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
                     }
                     let range = addr - prev_row.address();
                     if range > 0 {
-                        let bucket = addr_ranges.entry(range).or_default();
-                        *bucket += 1;
+                        addr_ranges.record(range);
+                        files.insert(row.file_index());
+                        let line = match row.line() {
+                            Some(line) => line.get(),
+                            None => 0,
+                        };
+                        lines.record(line);
 
                         covered_range += range;
-                        num_ranges += 1;
                     }
                 }
 
@@ -163,45 +174,31 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
                 }
             }
         }
+        num_files += files.len();
     }
 
-    println!("Histogram of address ranges:");
-    let mut sum = 0;
-    let mut median = None;
-    let mut p90 = None;
-    let mut p99 = None;
-    let mut p998 = None;
-    for (range, count) in addr_ranges {
-        sum += count;
-        if median.is_none() && sum > num_ranges / 2 {
-            median = Some(range);
-        }
-        if p90.is_none() && sum > num_ranges * 90 / 100 {
-            p90 = Some(range);
-        }
-        if p99.is_none() && sum > num_ranges * 99 / 100 {
-            p99 = Some(range);
-        }
-        if p998.is_none() && sum > num_ranges * 998 / 1000 {
-            p998 = Some(range);
-            break;
-        } else {
-            println!("{}: {}", range, count);
-        }
-    }
-    println!();
+    // println!("Histogram of address ranges:");
+    // println!();
 
+    let addr_stats = addr_ranges.stats();
+    let line_stats = lines.stats();
     let coverage = (covered_range * 100) / executable_range;
     println!("Total executable bytes in sections: {}", executable_range);
     println!(
         "Total address range covered: {} (coverage: {}%)",
         covered_range, coverage
     );
-    println!("Number of ranges: {}", num_ranges);
-    println!("Median range: {}", median.unwrap());
-    println!("p90 range: {}", p90.unwrap());
-    println!("p99 range: {}", p99.unwrap());
-    println!("p998 range: {}", p998.unwrap());
+    println!("Number of ranges: {}", addr_stats.total);
+    println!("Median range: {}", addr_stats.median);
+    println!("p90 range: {}", addr_stats.p90);
+    println!("p99 range: {}", addr_stats.p99);
+    println!("p999 range: {}", addr_stats.p999);
+    println!();
+    println!("Estimated number of files: {}", num_files);
+    println!("Median #lines: {}", line_stats.median);
+    println!("p90 #lines: {}", line_stats.p90);
+    println!("p99 #lines: {}", line_stats.p99);
+    println!("p999 #lines: {}", line_stats.p999);
 
     Ok(())
 }
