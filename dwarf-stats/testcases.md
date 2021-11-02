@@ -17,7 +17,7 @@ p90 range: 17
 p99 range: 41
 p999 range: 90
 
-Estimated number of files: 325_572
+Number of files: 36_154
 Median #lines: 274
 p90 #lines: 1943
 p99 #lines: 11651
@@ -37,7 +37,7 @@ p90 range: 18
 p99 range: 47
 p999 range: 120
 
-Estimated number of files: 82_794
+Number of files: 17_687
 Median #lines: 389
 p90 #lines: 2134
 p99 #lines: 9938
@@ -59,7 +59,7 @@ p90 range: 22
 p99 range: 67
 p999 range: 161
 
-Estimated number of files: 40_540
+Number of files: 2323
 Median #lines: 267
 p90 #lines: 1910
 p99 #lines: 5004
@@ -79,7 +79,7 @@ p90 range: 22
 p99 range: 61
 p999 range: 150
 
-Estimated number of files: 43_239
+Number of files: 2994
 Median #lines: 256
 p90 #lines: 1749
 p99 #lines: 3581
@@ -102,7 +102,7 @@ p90 range: 19
 p99 range: 56
 p999 range: 167
 
-Estimated number of files: 2165
+Number of files: 1519
 Median #lines: 452
 p90 #lines: 1944
 p99 #lines: 3767

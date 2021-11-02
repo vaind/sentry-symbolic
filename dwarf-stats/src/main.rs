@@ -135,10 +135,9 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
                     if range > 0 {
                         addr_ranges.record(range);
                         if seen_files.insert(row.file_index()) {
-                            //Determine the path. Real applications should cache this for performance.
-                            let mut path = path::PathBuf::new();
+                            // Determine the path.
                             if let Some(file) = row.file(header) {
-                                path = comp_dir.clone();
+                                let mut path = comp_dir.clone();
                                 if let Some(dir) = file.directory(header) {
                                     path.push(
                                         dwarf.attr_string(&unit, dir)?.to_string_lossy().as_ref(),
