@@ -72,7 +72,7 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
     let mut covered_range = 0;
     let mut addr_ranges = Histogram::new();
     let mut lines = Histogram::new();
-    let mut num_files = 0;
+    let mut file_paths = HashSet::new();
 
     // Iterate over the compilation units.
     let mut iter = dwarf.units();
@@ -82,7 +82,7 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
         // Construct LineRow Sequences.
         let sequences = unit.line_program.clone().and_then(parse_line_program);
 
-        let mut files = HashSet::new();
+        let mut seen_files = HashSet::new();
 
         // Iterate over the Debugging Information Entries (DIEs) in the unit.
         // let mut depth = 0;
@@ -112,16 +112,16 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
 
         // Get the line program for the compilation unit.
         if let Some(program) = unit.line_program.clone() {
-            // let comp_dir = if let Some(ref dir) = unit.comp_dir {
-            //     path::PathBuf::from(dir.to_string_lossy().into_owned())
-            // } else {
-            //     path::PathBuf::new()
-            // };
+            let comp_dir = if let Some(ref dir) = unit.comp_dir {
+                path::PathBuf::from(dir.to_string_lossy().into_owned())
+            } else {
+                path::PathBuf::new()
+            };
 
             // Iterate over the line program rows.
             let mut prev_row: Option<gimli::LineRow> = None;
             let mut rows = program.rows();
-            while let Some((_header, row)) = rows.next_row()? {
+            while let Some((header, row)) = rows.next_row()? {
                 let addr = row.address();
 
                 if let Some(prev_row) = prev_row {
@@ -134,7 +134,25 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
                     let range = addr - prev_row.address();
                     if range > 0 {
                         addr_ranges.record(range);
-                        files.insert(row.file_index());
+                        if seen_files.insert(row.file_index()) {
+                            //Determine the path. Real applications should cache this for performance.
+                            let mut path = path::PathBuf::new();
+                            if let Some(file) = row.file(header) {
+                                path = comp_dir.clone();
+                                if let Some(dir) = file.directory(header) {
+                                    path.push(
+                                        dwarf.attr_string(&unit, dir)?.to_string_lossy().as_ref(),
+                                    );
+                                }
+                                path.push(
+                                    dwarf
+                                        .attr_string(&unit, file.path_name())?
+                                        .to_string_lossy()
+                                        .as_ref(),
+                                );
+                                file_paths.insert(path);
+                            }
+                        }
                         let line = match row.line() {
                             Some(line) => line.get(),
                             None => 0,
@@ -150,21 +168,6 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
                 } else {
                     prev_row = Some(*row);
 
-                    // Determine the path. Real applications should cache this for performance.
-                    // let mut path = path::PathBuf::new();
-                    // if let Some(file) = row.file(header) {
-                    //     path = comp_dir.clone();
-                    //     if let Some(dir) = file.directory(header) {
-                    //         path.push(dwarf.attr_string(&unit, dir)?.to_string_lossy().as_ref());
-                    //     }
-                    //     path.push(
-                    //         dwarf
-                    //             .attr_string(&unit, file.path_name())?
-                    //             .to_string_lossy()
-                    //             .as_ref(),
-                    //     );
-                    // }
-
                     // Determine line/column. DWARF line/column is never 0, so we use that
                     // but other applications may want to display this differently.
                     // let line = match row.line() {
@@ -174,7 +177,6 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
                 }
             }
         }
-        num_files += files.len();
     }
 
     // println!("Histogram of address ranges:");
@@ -194,7 +196,7 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
     println!("p99 range: {}", addr_stats.p99);
     println!("p999 range: {}", addr_stats.p999);
     println!();
-    println!("Estimated number of files: {}", num_files);
+    println!("Number of files: {}", file_paths.len());
     println!("Median #lines: {}", line_stats.median);
     println!("p90 #lines: {}", line_stats.p90);
     println!("p99 #lines: {}", line_stats.p99);
