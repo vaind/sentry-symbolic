@@ -24,6 +24,26 @@ p99 #lines: 11651
 p999 #lines: 142_620
 ```
 
+- https://symbols.mozilla.org/libxul.so/9967F68DC87796379ACAF78D5225D9B60/libxul.so.dbg.gz
+
+DWARF size: 2.2G
+
+```
+Total executable bytes in sections: 84_226_614
+Total address range covered: 81_195_873 (coverage: 96%)
+Number of ranges: 8_345_577
+Median range: 7
+p90 range: 18
+p99 range: 47
+p999 range: 120
+
+Estimated number of files: 82_794
+Median #lines: 389
+p90 #lines: 2134
+p99 #lines: 9938
+p999 #lines: 47_035
+```
+
 # huge:
 
 - https://github.com/getsentry/symbolicator/releases/download/0.4.0/symbolicator-Linux-x86_64-debug.zip
