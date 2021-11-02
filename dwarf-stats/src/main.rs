@@ -85,30 +85,54 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
         let mut seen_files = HashSet::new();
 
         // Iterate over the Debugging Information Entries (DIEs) in the unit.
-        // let mut depth = 0;
-        // let mut entries = unit.entries();
-        // while let Some((delta_depth, entry)) = entries.next_dfs()? {
-        //     depth += delta_depth;
+        let mut depth = 0;
+        let mut entries = unit.entries();
+        while let Some((delta_depth, entry)) = entries.next_dfs()? {
+            depth += delta_depth;
 
-        //     match entry.tag() {
-        //         constants::DW_TAG_subprogram => {}
-        //         constants::DW_TAG_inlined_subroutine => {}
-        //         _ => continue,
-        //     }
+            match entry.tag() {
+                constants::DW_TAG_subprogram => {}
+                constants::DW_TAG_inlined_subroutine => {}
+                _ => continue,
+            }
 
-        //     println!("{:indent$}{}", "", entry.tag(), indent = depth as usize);
+            println!("{:indent$}{}", "", entry.tag(), indent = depth as usize);
 
-        //     // // Iterate over the attributes in the DIE.
-        //     // let mut attrs = entry.attrs();
-        //     // while let Some(attr) = attrs.next()? {
-        //     //     println!("   {}: {:?}", attr.name(), attr.value());
-        //     // }
+            // // Iterate over the attributes in the DIE.
+            // let mut attrs = entry.attrs();
+            // while let Some(attr) = attrs.next()? {
+            //     println!("   {}: {:?}", attr.name(), attr.value());
+            // }
 
-        //     let mut ranges = dwarf.die_ranges(&unit, entry)?;
-        //     while let Some(range) = ranges.next()? {
-        //         println!("{:indent$}{:?}", "", range, indent = depth as usize);
-        //     }
-        // }
+            let mut ranges = dwarf.die_ranges(&unit, entry)?;
+            while let Some(range) = ranges.next()? {
+                println!("{:indent$}{:?}", "", range, indent = depth as usize);
+                if let Some(ref sequences) = sequences {
+                    let seq = match sequences.binary_search_by_key(&range.end, |seq| seq.end) {
+                        Ok(i) => sequences.get(i),
+                        Err(i) => sequences.get(i).filter(|seq| seq.start <= range.begin),
+                    };
+                    if let Some(seq) = seq {
+                        assert!(
+                            seq.start <= range.begin && seq.end >= range.end,
+                            "{:?}",
+                            seq
+                        );
+                        let from = match seq.rows.binary_search_by_key(&range.begin, |x| x.address)
+                        {
+                            Ok(idx) => idx,
+                            Err(0) => continue,
+                            Err(next_idx) => next_idx - 1,
+                        };
+
+                        let len = seq.rows[from..]
+                            .binary_search_by_key(&range.end, |x| x.address)
+                            .unwrap_or_else(|e| e);
+                        println!("{:?}", &seq.rows[from..from + len]);
+                    }
+                }
+            }
+        }
 
         // Get the line program for the compilation unit.
         if let Some(program) = unit.line_program.clone() {
@@ -204,12 +228,14 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
     Ok(())
 }
 
+#[derive(Debug)]
 struct LineSequence {
     start: u64,
     end: u64,
     rows: Box<[LineRow]>,
 }
 
+#[derive(Debug)]
 struct LineRow {
     address: u64,
     file_index: u64,
