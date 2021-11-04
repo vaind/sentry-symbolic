@@ -11,16 +11,15 @@
 //! - https://github.com/gimli-rs/gimli/blob/master/examples/simple.rs
 //! - https://github.com/gimli-rs/gimli/blob/master/examples/simple_line.rs
 
-use gimli::{constants, IncompleteLineProgram};
 use object::{Object, ObjectSection};
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::num::NonZeroU64;
-use std::{borrow, env, fs, mem, path};
+use std::collections::HashSet;
+use std::{borrow, env, fs, path};
 
 use crate::hist::Histogram;
 
 const SHF_EXECINSTR: u64 = 0x4;
 
+mod dwarf_ranges;
 mod hist;
 
 fn main() {
@@ -79,63 +78,12 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
     while let Some(header) = iter.next()? {
         let unit = dwarf.unit(header)?;
 
-        // Construct LineRow Sequences.
-        let sequences = unit.line_program.clone().and_then(parse_line_program);
-
-        let mut seen_files = HashSet::new();
-
-        // Iterate over the Debugging Information Entries (DIEs) in the unit.
-        let mut depth = 0;
-        let mut entries = unit.entries();
-        while let Some((delta_depth, entry)) = entries.next_dfs()? {
-            depth += delta_depth;
-
-            match entry.tag() {
-                constants::DW_TAG_subprogram => {}
-                constants::DW_TAG_inlined_subroutine => {}
-                _ => continue,
-            }
-
-            println!("{:indent$}{}", "", entry.tag(), indent = depth as usize);
-
-            // // Iterate over the attributes in the DIE.
-            // let mut attrs = entry.attrs();
-            // while let Some(attr) = attrs.next()? {
-            //     println!("   {}: {:?}", attr.name(), attr.value());
-            // }
-
-            let mut ranges = dwarf.die_ranges(&unit, entry)?;
-            while let Some(range) = ranges.next()? {
-                println!("{:indent$}{:?}", "", range, indent = depth as usize);
-                if let Some(ref sequences) = sequences {
-                    let seq = match sequences.binary_search_by_key(&range.end, |seq| seq.end) {
-                        Ok(i) => sequences.get(i),
-                        Err(i) => sequences.get(i).filter(|seq| seq.start <= range.begin),
-                    };
-                    if let Some(seq) = seq {
-                        assert!(
-                            seq.start <= range.begin && seq.end >= range.end,
-                            "{:?}",
-                            seq
-                        );
-                        let from = match seq.rows.binary_search_by_key(&range.begin, |x| x.address)
-                        {
-                            Ok(idx) => idx,
-                            Err(0) => continue,
-                            Err(next_idx) => next_idx - 1,
-                        };
-
-                        let len = seq.rows[from..]
-                            .binary_search_by_key(&range.end, |x| x.address)
-                            .unwrap_or_else(|e| e);
-                        println!("{:?}", &seq.rows[from..from + len]);
-                    }
-                }
-            }
-        }
+        dwarf_ranges::construct_ranges_for_cu(&dwarf, &unit)?;
 
         // Get the line program for the compilation unit.
         if let Some(program) = unit.line_program.clone() {
+            let mut seen_files = HashSet::new();
+
             let comp_dir = if let Some(ref dir) = unit.comp_dir {
                 path::PathBuf::from(dir.to_string_lossy().into_owned())
             } else {
@@ -226,70 +174,4 @@ fn dump_file(object: &object::File, endian: gimli::RunTimeEndian) -> Result<(), 
     println!("p999 #lines: {}", line_stats.p999);
 
     Ok(())
-}
-
-#[derive(Debug)]
-struct LineSequence {
-    start: u64,
-    end: u64,
-    rows: Box<[LineRow]>,
-}
-
-#[derive(Debug)]
-struct LineRow {
-    address: u64,
-    file_index: u64,
-    line: u32,
-    column: u32,
-}
-
-// Adapted from: https://github.com/gimli-rs/addr2line/blob/ce1aa2c056c0f0164feafa1ef4d886e50a72b2d7/src/lib.rs#L563-L622
-fn parse_line_program<R: gimli::Reader>(
-    ilnp: IncompleteLineProgram<R>,
-) -> Option<Vec<LineSequence>> {
-    let mut sequences = Vec::new();
-    let mut sequence_rows = Vec::<LineRow>::new();
-    let mut rows = ilnp.clone().rows();
-    while let Some((_, row)) = rows.next_row().ok()? {
-        if row.end_sequence() {
-            if let Some(start) = sequence_rows.first().map(|x| x.address) {
-                let end = row.address();
-                let mut rows = Vec::new();
-                mem::swap(&mut rows, &mut sequence_rows);
-                sequences.push(LineSequence {
-                    start,
-                    end,
-                    rows: rows.into_boxed_slice(),
-                });
-            }
-            continue;
-        }
-
-        let address = row.address();
-        let file_index = row.file_index();
-        let line = row.line().map(NonZeroU64::get).unwrap_or(0) as u32;
-        let column = match row.column() {
-            gimli::ColumnType::LeftEdge => 0,
-            gimli::ColumnType::Column(x) => x.get() as u32,
-        };
-
-        if let Some(last_row) = sequence_rows.last_mut() {
-            if last_row.address == address {
-                last_row.file_index = file_index;
-                last_row.line = line;
-                last_row.column = column;
-                continue;
-            }
-        }
-
-        sequence_rows.push(LineRow {
-            address,
-            file_index,
-            line,
-            column,
-        });
-    }
-    sequences.sort_by_key(|x| x.start);
-
-    Some(sequences)
 }
