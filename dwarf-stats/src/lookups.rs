@@ -53,7 +53,7 @@ pub fn lookup_addr2line<R: gimli::Reader>(
             // strip leading `./` to be in-line with symcache output
             let file = loc
                 .file
-                .and_then(|f| f.strip_prefix("./"))
+                .map(|f| f.strip_prefix("./").unwrap_or(f))
                 .unwrap_or_default()
                 .to_string();
             let line = loc.line.unwrap_or_default();
@@ -88,7 +88,7 @@ pub fn lookup_symcache(
         let frame = frame?;
 
         let name = frame.function_name().into_string();
-        let file = frame.path();
+        let file = frame.abs_path();
         let line = frame.line();
 
         result.push(LookupFrame { name, file, line });
