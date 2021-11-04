@@ -92,3 +92,15 @@
                   DW_TAG_inlined_subroutine
                    DIE range: Range { begin: 1317344, end: 1317353 }
                    LineRows: [LineRow { address: 1317344, file_index: 12, line: 2052, column: 14 }]
+
+
+left: `LookupResult { frames: [
+    LookupFrame { name: "_ZN4mojo8internal15ValidatePointerIN7network5mojom8internal23HttpRequestHeaders_DataEEEbRKNS0_7PointerIT_EEPNS0_17ValidationContextE", file: "../../mojo/public/cpp/bindings/lib/validation_util.h", line: 0 },
+    LookupFrame { name: "_ZN4mojo8internal14ValidateParamsIN7network5mojom8internal23HttpRequestHeaders_DataEEEbRKNS0_7PointerIT_EEPNS0_17ValidationContextE", file: "../../mojo/public/cpp/bindings/lib/validation_util.h", line: 180 },
+    LookupFrame { name: "_ZN4mojo8internal14ValidateStructIN7network5mojom8internal23HttpRequestHeaders_DataEEEbRKNS0_7PointerIT_EEPNS0_17ValidationContextE", file: "../../mojo/public/cpp/bindings/lib/validation_util.h", line: 198 },
+    LookupFrame { name: "_ZN7network5mojom8internal36URLLoader_FollowRedirect_Params_Data8ValidateEPKvPN4mojo8internal17ValidationContextE", file: "./gen/services/network/public/mojom/url_loader.mojom-shared.cc", line: 98 }] }`
+right: `LookupResult { frames: [
+    LookupFrame { name: "_ZN4mojo8internal15ValidatePointerIN7network5mojom8internal23HttpRequestHeaders_DataEEEbRKNS0_7PointerIT_EEPNS0_17ValidationContextE", file: "../../mojo/public/cpp/bindings/lib/validation_util.h", line: 0 },
+    LookupFrame { name: "_ZN4mojo8internal14ValidateParamsIN7network5mojom8internal23HttpRequestHeaders_DataEEEbRKNS0_7PointerIT_EEPNS0_17ValidationContextE", file: "../../mojo/public/cpp/bindings/lib/validation_util.h", line: 180 },
+    LookupFrame { name: "_ZN4mojo8internal14ValidateStructIN7network5mojom8internal23HttpRequestHeaders_DataEEEbRKNS0_7PointerIT_EEPNS0_17ValidationContextE", file: "../../mojo/public/cpp/bindings/lib/validation_util.h", line: 198 },
+    LookupFrame { name: "_ZN7network5mojom8internal36URLLoader_FollowRedirect_Params_Data8ValidateEPKvPN4mojo8internal17ValidationContextE", file: "gen/services/network/public/mojom/url_loader.mojom-shared.cc", line: 98 }] }`: addr2line and symcache should agree for 33951268', dwarf-stats\src\main.rs:79:13

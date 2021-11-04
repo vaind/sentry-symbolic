@@ -47,9 +47,15 @@ pub fn lookup_addr2line<R: gimli::Reader>(
     let mut result = vec![];
 
     while let Some(frame) = frames.next()? {
+        // TODO: return just the name with an empty file/line if there is no location
         if let (Some(fun), Some(loc)) = (frame.function, frame.location) {
             let name = fun.raw_name()?.into();
-            let file = loc.file.unwrap_or_default().to_string();
+            // strip leading `./` to be in-line with symcache output
+            let file = loc
+                .file
+                .and_then(|f| f.strip_prefix("./"))
+                .unwrap_or_default()
+                .to_string();
             let line = loc.line.unwrap_or_default();
 
             result.push(LookupFrame { name, file, line });

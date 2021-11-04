@@ -39,11 +39,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // create the two contexts
         print!("Creating addr2line::Context ");
         let start = std::time::Instant::now();
-        let mut ctx = lookups::create_addr2line(&mmap)?;
-        for _ in 0..9 {
-            ctx = lookups::create_addr2line(&mmap)?;
-        }
-        println!("{:?} (10x)", start.elapsed());
+        let ctx = lookups::create_addr2line(&mmap)?;
+        println!("{:?}", start.elapsed());
 
         print!("Creating SymCache ");
         let start = std::time::Instant::now();
@@ -74,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // check correctness
 
-        let mut rng = SmallRng::seed_from_u64(0);
+        let mut rng = rand::thread_rng();
         for _ in 0..10_000 {
             let addr = rng.gen_range(executable_range.clone());
             let a = lookups::lookup_addr2line(&ctx, addr)?;
