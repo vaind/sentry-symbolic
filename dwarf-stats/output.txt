@@ -1,0 +1,94 @@
+1317210
+
+            DW_TAG_inlined_subroutine
+             DIE range: Range { begin: 1317180, end: 1317376 }
+             LineRows: [LineRow { address: 1317180, file_index: 7, line: 277, column: 30 }, LineRow { address: 1317187, file_index: 7, line: 1089, column: 23 }, LineRow { address: 1317201, file_index: 7, line: 1090, column: 9 }, LineRow { address: 1317208, file_index: 8, line: 242, column: 18 }, LineRow { address: 1317212, file_index: 1, line: 697, column: 9 }, LineRow { address: 1317232, file_index: 10, line: 250, column: 19 }, LineRow { address: 1317236, file_index: 10, line: 250, column: 16 }, LineRow { address: 1317242, file_index: 10, line: 0, column: 16 }, LineRow { address: 1317256, file_index: 10, line: 231, column: 79 }, LineRow { address: 1317259, file_index: 7, line: 1734, column: 13 }, LineRow { address: 1317262, file_index: 7, line: 1734, column: 5 }, LineRow { address: 1317268, file_index: 7, line: 0, column: 5 }, LineRow { address: 1317310, file_index: 7, line: 1097, column: 22 }, LineRow { address: 1317314, file_index: 12, line: 2052, column: 14 }, LineRow { address: 1317328, file_index: 7, line: 1101, column: 22 }, LineRow { address: 1317335, file_index: 7, line: 0, column: 22 }, LineRow { address: 1317340, file_index: 8, line: 242, column: 18 }, LineRow { address: 1317344, file_index: 12, line: 2052, column: 14 }, LineRow { address: 1317353, file_index: 7, line: 1104, column: 13 }, LineRow { address: 1317361, file_index: 7, line: 1105, column: 14 }]
+             DIE range: Range { begin: 1319718, end: 1319802 }
+             LineRows: [LineRow { address: 1319718, file_index: 10, line: 251, column: 13 }, LineRow { address: 1319741, file_index: 7, line: 1734, column: 5 }, LineRow { address: 1319766, file_index: 7, line: 0, column: 5 }, LineRow { address: 1319789, file_index: 7, line: 1106, column: 9 }, LineRow { address: 1319794, file_index: 7, line: 0, column: 9 }]
+             DW_TAG_inlined_subroutine
+              DIE range: Range { begin: 1317180, end: 1317187 }
+              LineRows: [LineRow { address: 1317180, file_index: 7, line: 277, column: 30 }]
+               DW_TAG_inlined_subroutine
+                DIE range: Range { begin: 1317208, end: 1317212 }
+                LineRows: [LineRow { address: 1317208, file_index: 8, line: 242, column: 18 }]
+                DW_TAG_inlined_subroutine
+                 DIE range: Range { begin: 1317208, end: 1317212 }
+                 LineRows: [LineRow { address: 1317208, file_index: 8, line: 242, column: 18 }]
+                 DW_TAG_inlined_subroutine
+                  DIE range: Range { begin: 1317208, end: 1317212 }
+                  LineRows: [LineRow { address: 1317208, file_index: 8, line: 242, column: 18 }]
+                  DW_TAG_inlined_subroutine
+                   DIE range: Range { begin: 1317208, end: 1317212 }
+                   LineRows: [LineRow { address: 1317208, file_index: 8, line: 242, column: 18 }]
+                   DW_TAG_inlined_subroutine
+                    DIE range: Range { begin: 1317208, end: 1317212 }
+                    LineRows: [LineRow { address: 1317208, file_index: 8, line: 242, column: 18 }]
+               DW_TAG_inlined_subroutine
+                DIE range: Range { begin: 1317212, end: 1317232 }
+                LineRows: [LineRow { address: 1317212, file_index: 1, line: 697, column: 9 }]
+                DW_TAG_inlined_subroutine
+                 DIE range: Range { begin: 1317212, end: 1317232 }
+                 LineRows: [LineRow { address: 1317212, file_index: 1, line: 697, column: 9 }]
+                 DW_TAG_inlined_subroutine
+                  DIE range: Range { begin: 1317212, end: 1317232 }
+                  LineRows: [LineRow { address: 1317212, file_index: 1, line: 697, column: 9 }]
+                 DW_TAG_inlined_subroutine
+                  DIE range: Range { begin: 1317232, end: 1317242 }
+                  LineRows: [LineRow { address: 1317232, file_index: 10, line: 250, column: 19 }, LineRow { address: 1317236, file_index: 10, line: 250, column: 16 }]
+                  DIE range: Range { begin: 1319718, end: 1319741 }
+                  LineRows: [LineRow { address: 1319718, file_index: 10, line: 251, column: 13 }]
+                  DW_TAG_inlined_subroutine
+                   DIE range: Range { begin: 1317232, end: 1317242 }
+                   LineRows: [LineRow { address: 1317232, file_index: 10, line: 250, column: 19 }, LineRow { address: 1317236, file_index: 10, line: 250, column: 16 }]
+                   DIE range: Range { begin: 1319718, end: 1319741 }
+                   LineRows: [LineRow { address: 1319718, file_index: 10, line: 251, column: 13 }]
+                   DW_TAG_inlined_subroutine
+                    DIE range: Range { begin: 1317232, end: 1317242 }
+                    LineRows: [LineRow { address: 1317232, file_index: 10, line: 250, column: 19 }, LineRow { address: 1317236, file_index: 10, line: 250, column: 16 }]
+                    DIE range: Range { begin: 1319718, end: 1319741 }
+                    LineRows: [LineRow { address: 1319718, file_index: 10, line: 251, column: 13 }]
+                    DW_TAG_inlined_subroutine
+                     DIE range: Range { begin: 1317232, end: 1317242 }
+                     LineRows: [LineRow { address: 1317232, file_index: 10, line: 250, column: 19 }, LineRow { address: 1317236, file_index: 10, line: 250, column: 16 }]
+                     DIE range: Range { begin: 1319718, end: 1319741 }
+                     LineRows: [LineRow { address: 1319718, file_index: 10, line: 251, column: 13 }]
+                 DW_TAG_inlined_subroutine
+                  DIE range: Range { begin: 1317256, end: 1317259 }
+                  LineRows: [LineRow { address: 1317256, file_index: 10, line: 231, column: 79 }]
+                  DW_TAG_inlined_subroutine
+                   DIE range: Range { begin: 1317256, end: 1317259 }
+                   LineRows: [LineRow { address: 1317256, file_index: 10, line: 231, column: 79 }]
+                   DW_TAG_inlined_subroutine
+                    DIE range: Range { begin: 1317256, end: 1317259 }
+                    LineRows: [LineRow { address: 1317256, file_index: 10, line: 231, column: 79 }]
+                 DW_TAG_inlined_subroutine
+                  DIE range: Range { begin: 1317259, end: 1317268 }
+                  LineRows: [LineRow { address: 1317259, file_index: 7, line: 1734, column: 13 }, LineRow { address: 1317262, file_index: 7, line: 1734, column: 5 }]
+                  DIE range: Range { begin: 1317314, end: 1317328 }
+                  LineRows: [LineRow { address: 1317314, file_index: 12, line: 2052, column: 14 }]
+                  DIE range: Range { begin: 1319741, end: 1319766 }
+                  LineRows: [LineRow { address: 1319741, file_index: 7, line: 1734, column: 5 }]
+                  DW_TAG_inlined_subroutine
+                   DIE range: Range { begin: 1317314, end: 1317328 }
+                   LineRows: [LineRow { address: 1317314, file_index: 12, line: 2052, column: 14 }]
+                 DW_TAG_inlined_subroutine
+                  DIE range: Range { begin: 1317340, end: 1317344 }
+                  LineRows: [LineRow { address: 1317340, file_index: 8, line: 242, column: 18 }]
+                  DW_TAG_inlined_subroutine
+                   DIE range: Range { begin: 1317340, end: 1317344 }
+                   LineRows: [LineRow { address: 1317340, file_index: 8, line: 242, column: 18 }]
+                   DW_TAG_inlined_subroutine
+                    DIE range: Range { begin: 1317340, end: 1317344 }
+                    LineRows: [LineRow { address: 1317340, file_index: 8, line: 242, column: 18 }]
+                    DW_TAG_inlined_subroutine
+                     DIE range: Range { begin: 1317340, end: 1317344 }
+                     LineRows: [LineRow { address: 1317340, file_index: 8, line: 242, column: 18 }]
+                     DW_TAG_inlined_subroutine
+                      DIE range: Range { begin: 1317340, end: 1317344 }
+                      LineRows: [LineRow { address: 1317340, file_index: 8, line: 242, column: 18 }]
+                 DW_TAG_inlined_subroutine
+                  DIE range: Range { begin: 1317344, end: 1317353 }
+                  LineRows: [LineRow { address: 1317344, file_index: 12, line: 2052, column: 14 }]
+                  DW_TAG_inlined_subroutine
+                   DIE range: Range { begin: 1317344, end: 1317353 }
+                   LineRows: [LineRow { address: 1317344, file_index: 12, line: 2052, column: 14 }]
