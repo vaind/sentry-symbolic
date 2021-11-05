@@ -13,3 +13,4 @@ memmap = "0.7"
 symbolic-debuginfo = { path = "../symbolic-debuginfo" }
 symbolic-symcache = { path = "../symbolic-symcache" }
 rand = { version = "0.8.3", features = ["small_rng"] }
+indexmap = "1.7.0"

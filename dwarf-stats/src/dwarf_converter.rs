@@ -1,23 +1,19 @@
-use std::collections::{hash_map::Entry, HashMap};
+use indexmap::set::IndexSet;
 
 #[derive(Debug, Default)]
 struct NewSymCache {
-    files: Vec<File>,
-    functions: Vec<Function>,
+    files: IndexSet<File>,
+    functions: IndexSet<Function>,
     ranges: Vec<InstrRange>,
     source_locations: Vec<InternalSourceLocation>,
-
-    // internal lookup tables
-    file_lookup: HashMap<String, u32>,
-    function_lookup: HashMap<String, u32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct File {
     name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct Function {
     name: String,
 }
@@ -63,11 +59,13 @@ impl NewSymCache {
 
         // first, map all line_program rows into our range structure
         for line_program_row in line_program {
-            let file_idx = slf.add_file(line_program_row.file.clone());
+            let (file_idx, _) = slf.files.insert_full(File {
+                name: line_program_row.file.clone(),
+            });
 
             let source_location_idx = slf.source_locations.len() as u32;
             slf.source_locations.push(InternalSourceLocation {
-                file: file_idx,
+                file: file_idx as u32,
                 line: line_program_row.line,
                 function: 0,
                 inlined_into: None,
@@ -82,11 +80,13 @@ impl NewSymCache {
         for fun in dwarf_dies {
             match fun {
                 DwarfDie::Subprogram { function, range } => {
-                    let fun_idx = slf.add_function(function.clone());
+                    let (fun_idx, _) = slf.functions.insert_full(Function {
+                        name: function.clone(),
+                    });
                     for range in slf.ranges.get_mut(range.clone()).unwrap() {
                         let source_location =
                             &mut slf.source_locations[range.source_location as usize];
-                        source_location.function = fun_idx;
+                        source_location.function = fun_idx as u32;
                     }
                 }
                 DwarfDie::InlinedSubroutine {
@@ -95,16 +95,20 @@ impl NewSymCache {
                     call_file,
                     call_line,
                 } => {
-                    let fun_idx = slf.add_function(function.clone());
-                    let file_idx = slf.add_file(call_file.clone());
+                    let (fun_idx, _) = slf.functions.insert_full(Function {
+                        name: function.clone(),
+                    });
+                    let (file_idx, _) = slf.files.insert_full(File {
+                        name: call_file.clone(),
+                    });
 
                     for range in slf.ranges.get_mut(range.clone()).unwrap() {
                         let caller_source_location =
                             &mut slf.source_locations[range.source_location as usize];
                         let mut own_source_location = caller_source_location.clone();
-                        own_source_location.function = fun_idx;
+                        own_source_location.function = fun_idx as u32;
 
-                        caller_source_location.file = file_idx;
+                        caller_source_location.file = file_idx as u32;
                         caller_source_location.line = *call_line;
 
                         own_source_location.inlined_into = Some(range.source_location);
@@ -119,32 +123,6 @@ impl NewSymCache {
         }
 
         slf
-    }
-
-    fn add_file(&mut self, file: String) -> u32 {
-        match self.file_lookup.entry(file.clone()) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => {
-                let idx = self.files.len() as u32;
-                self.files.push(File { name: file });
-                e.insert(idx);
-                idx
-            }
-        }
-    }
-
-    fn add_function(&mut self, function: String) -> u32 {
-        match self.function_lookup.entry(function.clone()) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => {
-                let idx = self.functions.len() as u32;
-                self.functions.push(Function {
-                    name: function.clone(),
-                });
-                e.insert(idx);
-                idx
-            }
-        }
     }
 
     pub fn lookup(&self, addr: u32) -> SourceLocationIter<'_> {
