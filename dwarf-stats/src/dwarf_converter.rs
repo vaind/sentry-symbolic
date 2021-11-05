@@ -1,10 +1,12 @@
 use indexmap::set::IndexSet;
+use std::collections::BTreeMap;
+use std::ops::{Bound, Range};
 
 #[derive(Debug, Default)]
 struct NewSymCache {
     files: IndexSet<File>,
     functions: IndexSet<Function>,
-    ranges: Vec<InstrRange>,
+    ranges: BTreeMap<u32, u32>,
     source_locations: Vec<InternalSourceLocation>,
 }
 
@@ -16,13 +18,6 @@ struct File {
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct Function {
     name: String,
-}
-
-#[derive(Debug)]
-struct InstrRange {
-    start: u32,
-    //end: u32,
-    source_location: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -43,11 +38,11 @@ struct LineProgramRow {
 enum DwarfDie {
     Subprogram {
         function: String,
-        range: std::ops::Range<usize>,
+        range: std::ops::Range<u32>,
     },
     InlinedSubroutine {
         function: String,
-        range: std::ops::Range<usize>,
+        range: std::ops::Range<u32>,
         call_file: String,
         call_line: u32,
     },
@@ -70,10 +65,8 @@ impl NewSymCache {
                 function: 0,
                 inlined_into: None,
             });
-            slf.ranges.push(InstrRange {
-                start: line_program_row.addr,
-                source_location: source_location_idx,
-            });
+            slf.ranges
+                .insert(line_program_row.addr, source_location_idx);
         }
 
         // next, walk all (inline) functions, and mutate our range structure accordingly
@@ -83,9 +76,9 @@ impl NewSymCache {
                     let (fun_idx, _) = slf.functions.insert_full(Function {
                         name: function.clone(),
                     });
-                    for range in slf.ranges.get_mut(range.clone()).unwrap() {
+                    for source_location_idx in Self::sub_ranges(&mut slf.ranges, range) {
                         let source_location =
-                            &mut slf.source_locations[range.source_location as usize];
+                            &mut slf.source_locations[*source_location_idx as usize];
                         source_location.function = fun_idx as u32;
                     }
                 }
@@ -102,21 +95,21 @@ impl NewSymCache {
                         name: call_file.clone(),
                     });
 
-                    for range in slf.ranges.get_mut(range.clone()).unwrap() {
+                    for source_location_idx in Self::sub_ranges(&mut slf.ranges, range) {
                         let caller_source_location =
-                            &mut slf.source_locations[range.source_location as usize];
+                            &mut slf.source_locations[*source_location_idx as usize];
                         let mut own_source_location = caller_source_location.clone();
                         own_source_location.function = fun_idx as u32;
 
                         caller_source_location.file = file_idx as u32;
                         caller_source_location.line = *call_line;
 
-                        own_source_location.inlined_into = Some(range.source_location);
+                        own_source_location.inlined_into = Some(*source_location_idx);
 
                         let own_source_location_idx = slf.source_locations.len() as u32;
                         slf.source_locations.push(own_source_location);
 
-                        range.source_location = own_source_location_idx;
+                        *source_location_idx = own_source_location_idx;
                     }
                 }
             }
@@ -126,17 +119,30 @@ impl NewSymCache {
     }
 
     pub fn lookup(&self, addr: u32) -> SourceLocationIter<'_> {
-        let range_idx = self
+        let source_location_idx = self
             .ranges
-            .binary_search_by_key(&addr, |range| range.start)
-            .unwrap_or_else(|i| i);
-
-        let range = self.ranges.get(range_idx);
+            .range((Bound::Unbounded, Bound::Included(addr)))
+            .next_back()
+            .map(|(_, idx)| *idx);
 
         SourceLocationIter {
             symcache: self,
-            source_location_idx: range.map(|range| range.source_location),
+            source_location_idx,
         }
+    }
+
+    fn sub_ranges<'a, 'b>(
+        ranges: &'a mut BTreeMap<u32, u32>,
+        range: &'b Range<u32>,
+    ) -> impl Iterator<Item = &'a mut u32> + 'a {
+        let first_after = ranges.range(range.end..).next();
+        let upper_bound = if let Some((first_after_start, _)) = first_after {
+            Bound::Excluded(*first_after_start)
+        } else {
+            Bound::Unbounded
+        };
+        let lower_bound = Bound::Included(range.start);
+        ranges.range_mut((lower_bound, upper_bound)).map(|(_, v)| v)
     }
 }
 
