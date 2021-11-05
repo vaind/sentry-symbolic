@@ -55,12 +55,12 @@ pub fn dump_file(object: &object::File) -> Result<(), gimli::Error> {
     while let Some(header) = iter.next()? {
         let unit = dwarf.unit(header)?;
 
-        let ranges = crate::dwarf_ranges::construct_ranges_for_cu(&dwarf, &unit)?;
-        let ranges = ranges
-            .iter()
-            .filter(|seq| seq.rows.iter().any(|row| row.source_locations.len() > 1));
-        dbg!(ranges.collect::<Vec<_>>());
-        return Ok(());
+        // let ranges = crate::dwarf_ranges::construct_ranges_for_cu(&dwarf, &unit)?;
+        // let ranges = ranges
+        //     .iter()
+        //     .filter(|seq| seq.rows.iter().any(|row| row.source_locations.len() > 1));
+        // dbg!(ranges.collect::<Vec<_>>());
+        // return Ok(());
 
         // Get the line program for the compilation unit.
         if let Some(program) = unit.line_program.clone() {
