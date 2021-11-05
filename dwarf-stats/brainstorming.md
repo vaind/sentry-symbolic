@@ -40,6 +40,76 @@ source_locations: [{
 }]
 ```
 
+## How-to convert DWARF
+
+```
+line program:
+
+0x00 - 0x02: main.c line 10
+0x02 - 0x03: a.c line 12
+0x03 - 0x04: b.c line 14
+
++
+
+- DW_AT_subprogram aka function
+  name: "main"
+  range: 0x00 - 0x04
+
+  - DW_TAG_inlined_subroutine aka inlined function
+    name: "call_a"
+    range: 0x02 - 0x04
+    DW_AT_call_file/line: main.c line 11
+
+    - DW_TAG_inlined_subroutine
+      name: "call_b"
+      range: 0x03-0x04
+      DW_AT_call_file/line: a.c line 13
+
+=
+
+0x00 - 0x02:
+    "main" in main.c line 10
+0x02 - 0x03:
+    "call_a" in a.c line 12
+    "main" in main.c line 11
+0x03 - 0x04:
+    "call_b" in b.c line 14
+    "call_a" in a.c line 13
+    "main" in main.c line 11
+
+0x00 - 0x02: [{ fun: None, file: main.c, line: 10 }]
+0x02 - 0x03: [{ fun: None, file: a.c, line: 12 }]
+0x03 - 0x04: [{ fun: None, file: b.c, line: 14 }]
+
+DW_AT_subprogram "main"
+
+0x00 - 0x02: [{ fun: "main", file: main.c, line: 10 }]
+0x02 - 0x03: [{ fun: "main", file: a.c, line: 12 }]
+0x03 - 0x04: [{ fun: "main", file: b.c, line: 14 }]
+
+DW_TAG_inlined_subroutine "call_a"
+
+0x00 - 0x02: [{ fun: "main", file: main.c, line: 10 }]
+0x02 - 0x03: [{ fun: "main", file: main.c, line: 11 }, { fun: "call_a", file: a.c, line: 12 }]
+0x03 - 0x04: [{ fun: "main", file: main.c, line: 11 }, { fun: "call_a", file: b.c, line: 14 }]
+
+DW_TAG_inlined_subroutine "call_b"
+
+0x00 - 0x02: [{ fun: "main", file: main.c, line: 10 }]
+0x02 - 0x03: [{ fun: "main", file: main.c, line: 11 }, { fun: "call_a", file: a.c, line: 12 }]
+0x03 - 0x04: [{ fun: "main", file: main.c, line: 11 }, { fun: "call_a", file: a.c, line: 13 }, { fun: "call_b", file: b.c, line: 14 }]
+
+for line_record in line_program.records_matching(DW_TAG_inlined_subroutine range) {
+    let mut own_record = line_record.last().clone();
+    let mut parent_record = line_record.last_mut();
+    // either
+    parent_record.file = DW_AT_call_file;
+    parent_record.line = DW_AT_call_line;
+    own_record.fun = DW_TAG_inlined_subroutine;
+    line_record.push(own_record);
+}
+```
+
 ## Napkin math for space usage
 
 ```
