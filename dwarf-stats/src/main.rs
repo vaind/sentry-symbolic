@@ -34,6 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let object = object::File::parse(mmap.as_ref())?;
         let executable_range = lookups::get_executable_range(&object);
+        println!("executable range: {:x?}", executable_range);
 
         // stats::dump_file(&object)?;
 
@@ -98,18 +99,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{:?} (1000x)", start.elapsed());
 
         // check correctness
-        println!();
-        let mut rng = rand::thread_rng();
-        for _ in 0..1_000 {
-            let addr = rng.gen_range(executable_range.clone());
+        // let mut rng = rand::thread_rng();
+        for addr in 0x10ef..0x10f9 {
+            // let addr = rng.gen_range(executable_range.clone());
             let a = lookups::lookup_addr2line(&ctx, addr)?;
             let s = lookups::lookup_symcache(&symcache, addr)?;
             let n = lookups::lookup_new_symcache(&converter, addr)?;
             if a != s || a != n {
-                println!("addr2line and symcache disagree for 0x{:x}", addr);
+                println!();
+                println!("disagreement for 0x{:x}", addr);
                 println!("addr2line: {:#?}", a);
                 println!("symcache: {:#?}", s);
-                println!("symcache: {:#?}", n);
+                println!("new symcache: {:#?}", n);
             }
         }
     }

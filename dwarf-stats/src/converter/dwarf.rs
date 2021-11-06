@@ -35,7 +35,6 @@ impl Converter {
         };
         let mut cu_cache = DwarfCuCaches::new(dwarf, unit, line_program.header().clone());
         let sequences = parse_line_program(line_program)?;
-        dbg!(&sequences);
 
         // TODO: figure out if we actually need to keep "sequences" separate?
         for seq in sequences {
@@ -290,10 +289,13 @@ fn parse_line_program<R: gimli::Reader>(
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write;
     use std::path::Path;
     use std::{borrow, fs};
 
     use object::{Object, ObjectSection};
+
+    use crate::converter::lookup::SourceLocationIter;
 
     use super::*;
 
@@ -337,13 +339,40 @@ mod tests {
         f(&dwarf)
     }
 
+    fn print_frames(frames: SourceLocationIter) -> String {
+        let mut s = String::new();
+
+        for source_location in frames {
+            let name = String::new();
+            let file = symbolic_common::join_path(
+                source_location.directory().unwrap_or(""),
+                source_location.path_name(),
+            );
+            let line = source_location.line();
+
+            writeln!(s, "{}:{}: {}", file, line, name).unwrap();
+        }
+        s
+    }
+
     #[test]
     fn work_on_dwarf() -> Result<()> {
         with_loaded_dwarf("tests/fixtures/inlined.debug".as_ref(), |dwarf| {
             let mut converter = Converter::new();
             converter.process_dwarf(dwarf)?;
 
-            dbg!(converter);
+            dbg!(&converter);
+
+            println!("0x{:x}:", 0x10f0);
+            println!("{}", print_frames(converter.lookup(0x10f0)));
+            println!("0x{:x}:", 0x10f2);
+            println!("{}", print_frames(converter.lookup(0x10f2)));
+            println!("0x{:x}:", 0x10f8);
+            println!("{}", print_frames(converter.lookup(0x10f8)));
+            println!("0x{:x}:", 0x10f9);
+            println!("{}", print_frames(converter.lookup(0x10f9)));
+            println!("0x{:x}:", 0x10ff);
+            println!("{}", print_frames(converter.lookup(0x10ff)));
 
             Ok(())
         })
