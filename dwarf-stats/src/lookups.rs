@@ -1,7 +1,9 @@
-use std::ops::Range;
+use std::{borrow, ops::Range};
 
 use object::{Object, ObjectSection};
 use symbolic_symcache::SymCache;
+
+use crate::converter::Converter;
 
 const SHF_EXECINSTR: u64 = 0x4;
 
@@ -95,4 +97,61 @@ pub fn lookup_symcache(
     }
 
     Ok(LookupResult { frames: result })
+}
+
+pub fn create_new_symcache(data: &[u8]) -> Result<Converter, Box<dyn std::error::Error>> {
+    let object = object::File::parse(data)?;
+
+    let endian = if object.is_little_endian() {
+        gimli::RunTimeEndian::Little
+    } else {
+        gimli::RunTimeEndian::Big
+    };
+
+    // Load a section and return as `Cow<[u8]>`.
+    let load_section = |id: gimli::SectionId| -> Result<borrow::Cow<[u8]>, gimli::Error> {
+        match object.section_by_name(id.name()) {
+            Some(ref section) => Ok(section
+                .uncompressed_data()
+                .unwrap_or(borrow::Cow::Borrowed(&[][..]))),
+            None => Ok(borrow::Cow::Borrowed(&[][..])),
+        }
+    };
+
+    // Load all of the sections.
+    let dwarf_cow = gimli::Dwarf::load(&load_section)?;
+
+    // Borrow a `Cow<[u8]>` to create an `EndianSlice`.
+    let borrow_section: &dyn for<'a> Fn(
+        &'a borrow::Cow<[u8]>,
+    ) -> gimli::EndianSlice<'a, gimli::RunTimeEndian> =
+        &|section| gimli::EndianSlice::new(&*section, endian);
+
+    // Create `EndianSlice`s for all of the sections.
+    let dwarf = dwarf_cow.borrow(&borrow_section);
+
+    let mut converter = Converter::new();
+    converter.process_dwarf(&dwarf)?;
+
+    Ok(converter)
+}
+
+pub fn lookup_new_symcache(
+    converter: &Converter,
+    addr: u64,
+) -> Result<LookupResult, Box<dyn std::error::Error>> {
+    let frames = converter
+        .lookup(addr as u32)
+        .map(|source_location| {
+            let name = String::new();
+            let file = symbolic_common::join_path(
+                source_location.directory().unwrap_or(""),
+                source_location.path_name(),
+            );
+            let line = source_location.line();
+            LookupFrame { name, file, line }
+        })
+        .collect();
+
+    Ok(LookupResult { frames })
 }

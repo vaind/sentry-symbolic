@@ -13,14 +13,16 @@
 
 use std::{env, fs};
 
+use humansize::{file_size_opts, FileSize};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
 
-mod dwarf_converter;
-mod dwarf_ranges;
-mod hist;
+mod converter;
+//mod dwarf_converter;
+//mod dwarf_ranges;
+//mod hist;
 mod lookups;
-mod stats;
+//mod stats;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     for path in env::args().skip(1) {
@@ -35,54 +37,81 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // stats::dump_file(&object)?;
 
-        // println!();
+        println!();
 
-        // // create the two contexts
-        // print!("Creating addr2line::Context ");
-        // let start = std::time::Instant::now();
-        // let ctx = lookups::create_addr2line(&mmap)?;
-        // println!("{:?}", start.elapsed());
+        // create the two contexts
+        print!("Creating addr2line::Context ");
+        let start = std::time::Instant::now();
+        let ctx = lookups::create_addr2line(&mmap)?;
+        println!("{:?}", start.elapsed());
+        println!(
+            "DWARF size: {}",
+            mmap.len().file_size(file_size_opts::BINARY).unwrap()
+        );
 
-        // print!("Creating SymCache ");
-        // let start = std::time::Instant::now();
-        // let symcache_buf = lookups::create_symcache(&mmap)?;
-        // let symcache = symbolic_symcache::SymCache::parse(&symcache_buf)?;
-        // println!("{:?}", start.elapsed());
+        print!("Creating SymCache ");
+        let start = std::time::Instant::now();
+        let symcache_buf = lookups::create_symcache(&mmap)?;
+        let symcache = symbolic_symcache::SymCache::parse(&symcache_buf)?;
+        println!("{:?}", start.elapsed());
+        println!(
+            "symcache size: {}",
+            symcache_buf
+                .len()
+                .file_size(file_size_opts::BINARY)
+                .unwrap()
+        );
 
-        // println!();
+        print!("Creating new SymCache ");
+        let start = std::time::Instant::now();
+        let converter = lookups::create_new_symcache(&mmap)?;
+        println!("{:?}", start.elapsed());
 
-        // // run lookups
-        // print!("Looking up in addr2line ");
-        // let mut rng = SmallRng::seed_from_u64(0);
-        // let start = std::time::Instant::now();
-        // for _ in 0..1000 {
-        //     let addr = rng.gen_range(executable_range.clone());
-        //     lookups::lookup_addr2line(&ctx, addr)?;
-        // }
-        // println!("{:?} (1000x)", start.elapsed());
+        println!();
 
-        // print!("Looking up in SymCache ");
-        // let mut rng = SmallRng::seed_from_u64(0);
-        // let start = std::time::Instant::now();
-        // for _ in 0..1000 {
-        //     let addr = rng.gen_range(executable_range.clone());
-        //     lookups::lookup_symcache(&symcache, addr)?;
-        // }
-        // println!("{:?} (1000x)", start.elapsed());
+        // run lookups
+        print!("Looking up in addr2line ");
+        let mut rng = SmallRng::seed_from_u64(0);
+        let start = std::time::Instant::now();
+        for _ in 0..1000 {
+            let addr = rng.gen_range(executable_range.clone());
+            lookups::lookup_addr2line(&ctx, addr)?;
+        }
+        println!("{:?} (1000x)", start.elapsed());
 
-        // // check correctness
-        // println!();
-        // let mut rng = rand::thread_rng();
-        // for _ in 0..1_000 {
-        //     let addr = rng.gen_range(executable_range.clone());
-        //     let a = lookups::lookup_addr2line(&ctx, addr)?;
-        //     let s = lookups::lookup_symcache(&symcache, addr)?;
-        //     if a != s {
-        //         println!("addr2line and symcache disagree for 0x{:x}", addr);
-        //         println!("addr2line: {:#?}", a);
-        //         println!("symcache: {:#?}", s);
-        //     }
-        // }
+        print!("Looking up in SymCache ");
+        let mut rng = SmallRng::seed_from_u64(0);
+        let start = std::time::Instant::now();
+        for _ in 0..1000 {
+            let addr = rng.gen_range(executable_range.clone());
+            lookups::lookup_symcache(&symcache, addr)?;
+        }
+        println!("{:?} (1000x)", start.elapsed());
+
+        print!("Looking up in new SymCache ");
+        let mut rng = SmallRng::seed_from_u64(0);
+        let start = std::time::Instant::now();
+        for _ in 0..1000 {
+            let addr = rng.gen_range(executable_range.clone());
+            lookups::lookup_new_symcache(&converter, addr)?;
+        }
+        println!("{:?} (1000x)", start.elapsed());
+
+        // check correctness
+        println!();
+        let mut rng = rand::thread_rng();
+        for _ in 0..1_000 {
+            let addr = rng.gen_range(executable_range.clone());
+            let a = lookups::lookup_addr2line(&ctx, addr)?;
+            let s = lookups::lookup_symcache(&symcache, addr)?;
+            let n = lookups::lookup_new_symcache(&converter, addr)?;
+            if a != s || a != n {
+                println!("addr2line and symcache disagree for 0x{:x}", addr);
+                println!("addr2line: {:#?}", a);
+                println!("symcache: {:#?}", s);
+                println!("symcache: {:#?}", n);
+            }
+        }
     }
     Ok(())
 }
