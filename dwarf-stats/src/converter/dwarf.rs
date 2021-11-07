@@ -39,8 +39,10 @@ impl Converter {
         // TODO: figure out if we actually need to keep "sequences" separate?
         for seq in sequences {
             for row in seq.rows {
+                // TODO: figure out what to do in this case? Why does it happen?
                 if self.ranges.contains_key(&(row.address as u32)) {
-                    panic!("entry for line program row {:?} should not exist yet!", row);
+                    // panic!("entry for line program row {:?} should not exist yet!", row);
+                    continue;
                 }
                 let file_idx = cu_cache.file(self, row.file_index as u64)?;
 
