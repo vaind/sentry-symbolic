@@ -14,17 +14,19 @@ type Result<T, E = gimli::Error> = std::result::Result<T, E>;
 
 impl Converter {
     pub fn process_dwarf<R: gimli::Reader>(&mut self, dwarf: &Dwarf<R>) -> Result<()> {
+        let mut reusable_cache = ReusableCaches::default();
         // Iterate over the compilation units.
         let mut iter = dwarf.units();
         while let Some(header) = iter.next()? {
             let unit = dwarf.unit(header)?;
-            self.process_dwarf_cu(dwarf, &unit)?;
+            self.process_dwarf_cu(&mut reusable_cache, dwarf, &unit)?;
         }
         Ok(())
     }
 
     fn process_dwarf_cu<R: gimli::Reader>(
         &mut self,
+        reusable_cache: &mut ReusableCaches,
         dwarf: &Dwarf<R>,
         unit: &Unit<R>,
     ) -> Result<()> {
@@ -33,7 +35,8 @@ impl Converter {
             Some(lp) => lp,
             None => return Ok(()),
         };
-        let mut cu_cache = DwarfCuCaches::new(dwarf, unit, line_program.header().clone());
+        let mut cu_cache =
+            PerCuCache::new(reusable_cache, dwarf, unit, line_program.header().clone());
         let sequences = parse_line_program(line_program)?;
 
         // TODO: figure out if we actually need to keep "sequences" separate?
@@ -128,64 +131,83 @@ fn sub_ranges<'a>(
     ranges.range_mut((lower_bound, upper_bound)).map(|(_, v)| v)
 }
 
-#[derive(Debug)]
-struct DwarfCuCaches<'dwarf, R: gimli::Reader> {
-    dwarf: &'dwarf Dwarf<R>,
-    unit: &'dwarf Unit<R>,
-    header: LineProgramHeader<R>,
+#[derive(Debug, Default)]
+struct ReusableCaches {
     file_mapping: HashMap<u32, u32>,
 }
 
-impl<'dwarf, R: gimli::Reader> DwarfCuCaches<'dwarf, R> {
-    fn new(dwarf: &'dwarf Dwarf<R>, unit: &'dwarf Unit<R>, header: LineProgramHeader<R>) -> Self {
+impl ReusableCaches {
+    fn clear(&mut self) {
+        self.file_mapping.clear();
+    }
+}
+
+#[derive(Debug)]
+struct PerCuCache<'dwarf, R: gimli::Reader> {
+    dwarf: &'dwarf Dwarf<R>,
+    unit: &'dwarf Unit<R>,
+    header: LineProgramHeader<R>,
+    reusable_cache: &'dwarf mut ReusableCaches,
+}
+
+impl<'dwarf, R: gimli::Reader> PerCuCache<'dwarf, R> {
+    fn new(
+        reusable_cache: &'dwarf mut ReusableCaches,
+        dwarf: &'dwarf Dwarf<R>,
+        unit: &'dwarf Unit<R>,
+        header: LineProgramHeader<R>,
+    ) -> Self {
+        reusable_cache.clear();
+        reusable_cache
+            .file_mapping
+            .reserve(header.file_names().len());
         Self {
             dwarf,
             unit,
             header,
-            file_mapping: HashMap::new(),
+            reusable_cache,
         }
     }
 
     fn file(&mut self, converter: &mut Converter, file_index: u64) -> Result<u32> {
-        Ok(match self.file_mapping.entry(file_index as u32) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => {
-                let file = match self.header.file(file_index) {
-                    Some(file) => file,
-                    None => return Ok(u32::MAX),
-                };
+        let entry = match self.reusable_cache.file_mapping.entry(file_index as u32) {
+            Entry::Occupied(e) => return Ok(*e.get()),
+            Entry::Vacant(e) => e,
+        };
+        let file = match self.header.file(file_index) {
+            Some(file) => file,
+            None => return Ok(u32::MAX),
+        };
 
-                let directory_idx = if let Some(dir) = file.directory(&self.header) {
-                    let directory = self
-                        .dwarf
-                        .attr_string(self.unit, dir)?
-                        .to_string_lossy()?
-                        .into_owned();
-                    Some(converter.strings.insert_full(directory).0 as u32)
-                } else {
-                    None
-                };
+        let directory_idx = if let Some(dir) = file.directory(&self.header) {
+            let directory = self
+                .dwarf
+                .attr_string(self.unit, dir)?
+                .to_string_lossy()?
+                .into_owned();
+            Some(converter.strings.insert_full(directory).0 as u32)
+        } else {
+            None
+        };
 
-                let path_name = self
-                    .dwarf
-                    .attr_string(self.unit, file.path_name())?
-                    .to_string_lossy()?
-                    .into_owned();
-                let path_name_idx = converter.strings.insert_full(path_name).0 as u32;
+        let path_name = self
+            .dwarf
+            .attr_string(self.unit, file.path_name())?
+            .to_string_lossy()?
+            .into_owned();
+        let path_name_idx = converter.strings.insert_full(path_name).0 as u32;
 
-                let file_idx = converter
-                    .files
-                    .insert_full(File {
-                        directory_idx,
-                        path_name_idx,
-                    })
-                    .0 as u32;
+        let file_idx = converter
+            .files
+            .insert_full(File {
+                directory_idx,
+                path_name_idx,
+            })
+            .0 as u32;
 
-                e.insert(file_idx);
+        entry.insert(file_idx);
 
-                file_idx
-            }
-        })
+        Ok(file_idx)
     }
 }
 
