@@ -10,7 +10,7 @@ pub struct Converter {
     files: IndexSet<File>,
     functions: IndexSet<Function>,
     ranges: BTreeMap<u32, u32>,
-    source_locations: Vec<SourceLocation>,
+    source_locations: IndexSet<SourceLocation>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -24,7 +24,7 @@ struct Function {
     name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct SourceLocation {
     file_idx: u32,
     line: u32,

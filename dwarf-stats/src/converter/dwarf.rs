@@ -1,5 +1,5 @@
 use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{btree_map, BTreeMap, HashMap};
 use std::mem;
 use std::num::NonZeroU64;
 use std::ops::Bound;
@@ -40,23 +40,20 @@ impl Converter {
         let sequences = parse_line_program(line_program)?;
 
         // TODO: figure out if we actually need to keep "sequences" separate?
+        let mut line_program_ranges = BTreeMap::new();
         for seq in sequences {
             for row in seq.rows {
-                // TODO: figure out what to do in this case? Why does it happen?
-                if self.ranges.contains_key(&(row.address as u32)) {
-                    // panic!("entry for line program row {:?} should not exist yet!", row);
-                    continue;
-                }
-                let file_idx = cu_cache.file(self, row.file_index as u64)?;
+                let file_idx = cu_cache.insert_file(self, row.file_index as u64)?;
 
-                let source_location_idx = self.source_locations.len() as u32;
-                self.source_locations.push(SourceLocation {
-                    file_idx,
-                    line: row.line,
-                    function_idx: u32::MAX,
-                    inlined_into_idx: None,
-                });
-                self.ranges.insert(row.address as u32, source_location_idx);
+                line_program_ranges.insert(
+                    row.address as u32,
+                    SourceLocation {
+                        file_idx,
+                        line: row.line,
+                        function_idx: u32::MAX,
+                        inlined_into_idx: None,
+                    },
+                );
             }
         }
 
@@ -73,7 +70,7 @@ impl Converter {
             };
             let caller_info = find_caller_info(entry)?;
             let caller_file = match caller_info.0 {
-                Some(file_id) => cu_cache.file(self, file_id)? as u32,
+                Some(file_id) => cu_cache.insert_file(self, file_id)? as u32,
                 None => 0,
             };
             let caller_line = caller_info.1.unwrap_or(0) as u32;
@@ -84,43 +81,52 @@ impl Converter {
                     // TODO: insert function info
                     let function_idx = u32::MAX;
 
-                    for source_location_idx in sub_ranges(&mut self.ranges, &range) {
-                        let caller_source_location =
-                            &mut self.source_locations[*source_location_idx as usize];
-                        let mut own_source_location = caller_source_location.clone();
-                        own_source_location.function_idx = function_idx;
-
+                    for callee_source_location in sub_ranges(&mut line_program_ranges, &range) {
+                        let mut caller_source_location = callee_source_location.clone();
                         caller_source_location.file_idx = caller_file;
                         caller_source_location.line = caller_line;
 
-                        own_source_location.inlined_into_idx = Some(*source_location_idx);
-
-                        let own_source_location_idx = self.source_locations.len() as u32;
-                        self.source_locations.push(own_source_location);
-
-                        *source_location_idx = own_source_location_idx;
+                        callee_source_location.inlined_into_idx =
+                            Some(self.insert_source_location(caller_source_location));
+                        callee_source_location.function_idx = function_idx;
                     }
                 } else {
                     // TODO: insert function info
                     let function_idx = u32::MAX;
 
-                    for source_location_idx in sub_ranges(&mut self.ranges, &range) {
-                        let source_location =
-                            &mut self.source_locations[*source_location_idx as usize];
+                    for source_location in sub_ranges(&mut line_program_ranges, &range) {
                         source_location.function_idx = function_idx;
                     }
                 }
             }
         }
 
+        for (addr, source_location) in line_program_ranges {
+            let source_location_idx = self.insert_source_location(source_location);
+
+            match self.ranges.entry(addr) {
+                btree_map::Entry::Vacant(entry) => {
+                    entry.insert(source_location_idx);
+                }
+                btree_map::Entry::Occupied(_) => {
+                    // TODO: figure out what to do in this case? Why does it happen?
+                    // panic!("entry for line program row {:?} should not exist yet!", row);
+                }
+            }
+        }
+
         Ok(())
+    }
+
+    fn insert_source_location(&mut self, source_location: SourceLocation) -> u32 {
+        self.source_locations.insert_full(source_location).0 as u32
     }
 }
 
 fn sub_ranges<'a>(
-    ranges: &'a mut BTreeMap<u32, u32>,
+    ranges: &'a mut BTreeMap<u32, SourceLocation>,
     range: &gimli::Range,
-) -> impl Iterator<Item = &'a mut u32> {
+) -> impl Iterator<Item = &'a mut SourceLocation> {
     let first_after = ranges.range(range.end as u32..).next();
     let upper_bound = if let Some((first_after_start, _)) = first_after {
         Bound::Excluded(*first_after_start)
@@ -169,7 +175,7 @@ impl<'dwarf, R: gimli::Reader> PerCuCache<'dwarf, R> {
         }
     }
 
-    fn file(&mut self, converter: &mut Converter, file_index: u64) -> Result<u32> {
+    fn insert_file(&mut self, converter: &mut Converter, file_index: u64) -> Result<u32> {
         let entry = match self.reusable_cache.file_mapping.entry(file_index as u32) {
             Entry::Occupied(e) => return Ok(*e.get()),
             Entry::Vacant(e) => e,
@@ -229,31 +235,6 @@ fn find_caller_info<R: gimli::Reader>(
         }
     }
     Ok((call_file, call_line))
-}
-
-fn find_matching_lines(
-    sequences: &mut [LineSequence],
-    range: gimli::Range,
-) -> Option<&mut [LineProgramRow]> {
-    // find the sequence matching the riven range
-    let seq_idx = sequences
-        .binary_search_by_key(&range.end, |seq| seq.end)
-        .unwrap_or_else(|i| i);
-    let seq = sequences
-        .get_mut(seq_idx)
-        .filter(|seq| seq.start <= range.begin)?;
-
-    // inside the sequence, find the rows that are matching the range
-    let from = match seq.rows.binary_search_by_key(&range.begin, |x| x.address) {
-        Ok(idx) => idx,
-        Err(0) => return None,
-        Err(next_idx) => next_idx - 1,
-    };
-
-    let len = seq.rows[from..]
-        .binary_search_by_key(&range.end, |x| x.address)
-        .unwrap_or_else(|e| e);
-    seq.rows.get_mut(from..from + len)
 }
 
 #[derive(Debug)]
@@ -384,7 +365,7 @@ mod tests {
 
     #[test]
     fn work_on_dwarf() -> Result<()> {
-        with_loaded_dwarf("tests/fixtures/inlined.debug".as_ref(), |dwarf| {
+        with_loaded_dwarf("tests/fixtures/two_inlined.debug".as_ref(), |dwarf| {
             let mut converter = Converter::new();
             converter.process_dwarf(dwarf)?;
 

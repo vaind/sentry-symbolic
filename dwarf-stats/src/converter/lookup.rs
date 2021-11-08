@@ -27,7 +27,10 @@ impl<'symcache> Iterator for SourceLocationIter<'symcache> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let source_location_idx = self.source_location_idx? as usize;
-        let source_location = self.symcache.source_locations.get(source_location_idx)?;
+        let source_location = self
+            .symcache
+            .source_locations
+            .get_index(source_location_idx)?;
 
         self.source_location_idx = source_location.inlined_into_idx;
         Some(SourceLocationReference {
