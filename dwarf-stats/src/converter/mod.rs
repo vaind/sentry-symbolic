@@ -2,7 +2,9 @@ use indexmap::set::IndexSet;
 use std::collections::BTreeMap;
 
 mod dwarf;
+mod error;
 mod lookup;
+mod serialize;
 
 #[derive(Debug, Default)]
 pub struct Converter {
@@ -11,6 +13,12 @@ pub struct Converter {
     functions: IndexSet<Function>,
     ranges: BTreeMap<u32, u32>,
     source_locations: IndexSet<SourceLocation>,
+}
+
+impl Converter {
+    pub fn transform_strings<F: FnMut(String) -> String>(&mut self, _mapper: F) {
+        // TODO: transform all the strings, for example to apply BCSymbolMaps.
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]

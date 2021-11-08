@@ -9,27 +9,44 @@ use gimli::{
     LineProgramHeader, ReaderOffset, Unit, UnitOffset,
 };
 
+use super::error::ErrorSink;
 use super::*;
 
 type Result<T, E = gimli::Error> = std::result::Result<T, E>;
 
 impl Converter {
-    pub fn process_dwarf<R: gimli::Reader>(&mut self, dwarf: &Dwarf<R>) -> Result<()> {
+    pub fn process_dwarf<R: gimli::Reader, E: ErrorSink<gimli::Error>>(
+        &mut self,
+        dwarf: &Dwarf<R>,
+        mut error_sink: E,
+    ) {
+        let error_sink = &mut error_sink;
         let mut reusable_cache = ReusableCaches::default();
         // Iterate over the compilation units.
         let mut iter = dwarf.units();
-        while let Some(header) = iter.next()? {
-            let unit = dwarf.unit(header)?;
-            self.process_dwarf_cu(&mut reusable_cache, dwarf, &unit)?;
+        while let Some(header) = iter.next().unwrap_or_else(|err| {
+            error_sink.raise_error(err);
+            None
+        }) {
+            let unit = match dwarf.unit(header) {
+                Ok(unit) => unit,
+                Err(err) => {
+                    error_sink.raise_error(err);
+                    continue;
+                }
+            };
+            if let Err(err) = self.process_dwarf_cu(&mut reusable_cache, dwarf, &unit, error_sink) {
+                error_sink.raise_error(err);
+            }
         }
-        Ok(())
     }
 
-    fn process_dwarf_cu<R: gimli::Reader>(
+    fn process_dwarf_cu<R: gimli::Reader, E: ErrorSink<gimli::Error>>(
         &mut self,
         reusable_cache: &mut ReusableCaches,
         dwarf: &Dwarf<R>,
         unit: &Unit<R>,
+        error_sink: &mut E,
     ) -> Result<()> {
         // Construct LineRow Sequences.
         let line_program = match unit.line_program.clone() {
@@ -59,10 +76,10 @@ impl Converter {
         }
 
         // Iterate over the Debugging Information Entries (DIEs) in the unit.
-        let mut depth = 0;
+        let mut _depth = 0;
         let mut entries = unit.entries();
         while let Some((delta_depth, entry)) = entries.next_dfs()? {
-            depth += delta_depth;
+            _depth += delta_depth;
 
             let is_inlined_subroutine = match entry.tag() {
                 constants::DW_TAG_subprogram => false,
@@ -466,7 +483,7 @@ mod tests {
     fn work_on_dwarf() -> Result<()> {
         with_loaded_dwarf("tests/fixtures/two_inlined.debug".as_ref(), |dwarf| {
             let mut converter = Converter::new();
-            converter.process_dwarf(dwarf)?;
+            converter.process_dwarf(dwarf, |err| panic!("{}", err));
 
             dbg!(&converter);
 

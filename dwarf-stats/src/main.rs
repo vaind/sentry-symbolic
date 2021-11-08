@@ -18,8 +18,6 @@ use rand::prelude::*;
 use rand::rngs::SmallRng;
 
 mod converter;
-//mod dwarf_converter;
-//mod dwarf_ranges;
 //mod hist;
 mod lookups;
 //mod stats;
