@@ -10,3 +10,8 @@ objcopy --only-keep-debug simple.so simple.debug
 rustc --remap-path-prefix $PWD=root-comp-dir --target x86_64-unknown-linux-gnu -O -C debuginfo=1 --crate-type staticlib --emit obj inlined.rs
 clang -Wl,--gc-sections -shared -o inlined.so inlined.o
 objcopy --only-keep-debug inlined.so inlined.debug
+
+# two levels of inlining
+rustc --remap-path-prefix $PWD=root-comp-dir --target x86_64-unknown-linux-gnu -O -C debuginfo=1 --crate-type staticlib --emit obj two_inlined.rs
+clang -Wl,--gc-sections -shared -o two_inlined.so two_inlined.o
+objcopy --only-keep-debug two_inlined.so two_inlined.debug
