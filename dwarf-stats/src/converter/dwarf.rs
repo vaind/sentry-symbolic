@@ -298,6 +298,9 @@ fn parse_line_program<R: gimli::Reader>(
                 last_row.line = line;
                 continue;
             }
+            if last_row.file_index == file_index && last_row.line == line {
+                continue;
+            }
         }
 
         sequence_rows.push(LineProgramRow {
