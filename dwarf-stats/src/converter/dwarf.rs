@@ -77,6 +77,10 @@ impl Converter {
 
             let mut ranges = dwarf.die_ranges(unit, entry)?;
             while let Some(range) = ranges.next()? {
+                if range.begin == 0 || range.begin == range.end {
+                    // ignore 0-ranges
+                    continue;
+                }
                 if is_inlined_subroutine {
                     // TODO: insert function info
                     let function_idx = u32::MAX;
@@ -108,9 +112,14 @@ impl Converter {
                 btree_map::Entry::Vacant(entry) => {
                     entry.insert(source_location_idx);
                 }
-                btree_map::Entry::Occupied(_) => {
+                btree_map::Entry::Occupied(_entry) => {
                     // TODO: figure out what to do in this case? Why does it happen?
-                    // panic!("entry for line program row {:?} should not exist yet!", row);
+                    // panic!(
+                    //     "entry for addr 0x{:x} should not exist yet! {:?} =? {:?}",
+                    //     addr,
+                    //     entry.get(),
+                    //     source_location_idx,
+                    // );
                 }
             }
         }
@@ -262,6 +271,11 @@ fn parse_line_program<R: gimli::Reader>(
         if row.end_sequence() {
             if let Some(start) = sequence_rows.first().map(|x| x.address) {
                 let end = row.address();
+                // ignore 0-ranges
+                if start == 0 {
+                    sequence_rows.clear();
+                    continue;
+                }
                 let mut rows = Vec::new();
                 mem::swap(&mut rows, &mut sequence_rows);
                 sequences.push(LineSequence { start, end, rows });
