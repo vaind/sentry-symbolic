@@ -5,7 +5,8 @@ use std::num::NonZeroU64;
 use std::ops::Bound;
 
 use gimli::{
-    constants, DebuggingInformationEntry, Dwarf, IncompleteLineProgram, LineProgramHeader, Unit,
+    constants, AttributeValue, DebuggingInformationEntry, Dwarf, IncompleteLineProgram,
+    LineProgramHeader, ReaderOffset, Unit, UnitOffset,
 };
 
 use super::*;
@@ -68,13 +69,18 @@ impl Converter {
                 constants::DW_TAG_inlined_subroutine => true,
                 _ => continue,
             };
-            let caller_info = find_caller_info(entry)?;
-            let caller_file = match caller_info.0 {
-                Some(file_id) => cu_cache.insert_file(self, file_id)? as u32,
-                None => 0,
+            let (caller_file, caller_line, function_idx) = match find_caller_info(entry)? {
+                Some(CallerInfo {
+                    call_file,
+                    call_line,
+                    abstract_origin,
+                }) => {
+                    let caller_file = cu_cache.insert_file(self, call_file)? as u32;
+                    let caller_idx = cu_cache.insert_function(self, abstract_origin)? as u32;
+                    (caller_file, call_line, caller_idx)
+                }
+                None => (0, 0, 0),
             };
-            let caller_line = caller_info.1.unwrap_or(0) as u32;
-
             let mut ranges = dwarf.die_ranges(unit, entry)?;
             while let Some(range) = ranges.next()? {
                 if range.begin == 0 || range.begin == range.end {
@@ -82,9 +88,6 @@ impl Converter {
                     continue;
                 }
                 if is_inlined_subroutine {
-                    // TODO: insert function info
-                    let function_idx = u32::MAX;
-
                     for callee_source_location in sub_ranges(&mut line_program_ranges, &range) {
                         let mut caller_source_location = callee_source_location.clone();
                         caller_source_location.file_idx = caller_file;
@@ -95,9 +98,7 @@ impl Converter {
                         callee_source_location.function_idx = function_idx;
                     }
                 } else {
-                    // TODO: insert function info
-                    let function_idx = u32::MAX;
-
+                    let function_idx = cu_cache.insert_function(self, entry.offset())?;
                     for source_location in sub_ranges(&mut line_program_ranges, &range) {
                         source_location.function_idx = function_idx;
                     }
@@ -149,11 +150,13 @@ fn sub_ranges<'a>(
 #[derive(Debug, Default)]
 struct ReusableCaches {
     file_mapping: HashMap<u32, u32>,
+    function_mapping: HashMap<u32, u32>,
 }
 
 impl ReusableCaches {
     fn clear(&mut self) {
         self.file_mapping.clear();
+        self.function_mapping.clear();
     }
 }
 
@@ -165,7 +168,11 @@ struct PerCuCache<'dwarf, R: gimli::Reader> {
     reusable_cache: &'dwarf mut ReusableCaches,
 }
 
-impl<'dwarf, R: gimli::Reader> PerCuCache<'dwarf, R> {
+impl<'dwarf, R> PerCuCache<'dwarf, R>
+where
+    R: gimli::Reader,
+    R::Offset: gimli::ReaderOffset,
+{
     fn new(
         reusable_cache: &'dwarf mut ReusableCaches,
         dwarf: &'dwarf Dwarf<R>,
@@ -182,6 +189,43 @@ impl<'dwarf, R: gimli::Reader> PerCuCache<'dwarf, R> {
             header,
             reusable_cache,
         }
+    }
+
+    fn insert_function(
+        &mut self,
+        converter: &mut Converter,
+        die_offset: UnitOffset<R::Offset>,
+    ) -> Result<u32> {
+        let entry = match self
+            .reusable_cache
+            .function_mapping
+            .entry(die_offset.0.into_u64() as u32)
+        {
+            Entry::Occupied(e) => return Ok(*e.get()),
+            Entry::Vacant(e) => e,
+        };
+        let die = self.unit.entry(die_offset)?;
+        let function_name = match find_function_name(&die)? {
+            Some(name) => self
+                .dwarf
+                .attr_string(self.unit, name)?
+                .to_string()?
+                .into_owned(),
+            None => String::new(),
+        };
+
+        let function_name_idx = converter.strings.insert_full(function_name).0 as u32;
+
+        let function_idx = converter
+            .functions
+            .insert_full(Function {
+                name_idx: function_name_idx,
+            })
+            .0 as u32;
+
+        entry.insert(function_idx);
+
+        Ok(function_idx)
     }
 
     fn insert_file(&mut self, converter: &mut Converter, file_index: u64) -> Result<u32> {
@@ -226,24 +270,66 @@ impl<'dwarf, R: gimli::Reader> PerCuCache<'dwarf, R> {
     }
 }
 
+#[derive(Debug)]
+struct CallerInfo<R: gimli::Reader> {
+    call_file: u64,
+    call_line: u32,
+    abstract_origin: UnitOffset<R::Offset>,
+}
+
 fn find_caller_info<R: gimli::Reader>(
     entry: &DebuggingInformationEntry<R>,
-) -> Result<(Option<u64>, Option<u64>)> {
+) -> Result<Option<CallerInfo<R>>> {
     let mut call_file = None;
     let mut call_line = None;
+    let mut abstract_origin = None;
     let mut attrs = entry.attrs();
     while let Some(attr) = attrs.next()? {
         match attr.name() {
             constants::DW_AT_call_file => {
-                call_file = attr.udata_value();
+                if let gimli::AttributeValue::FileIndex(fi) = attr.value() {
+                    call_file = Some(fi);
+                }
             }
             constants::DW_AT_call_line => {
-                call_line = attr.udata_value();
+                call_line = attr.udata_value().map(|val| val as u32);
+            }
+            constants::DW_AT_abstract_origin => {
+                if let gimli::AttributeValue::UnitRef(ur) = attr.value() {
+                    abstract_origin = Some(ur);
+                }
             }
             _ => {}
         }
     }
-    Ok((call_file, call_line))
+    Ok(match (call_file, call_line, abstract_origin) {
+        (Some(call_file), Some(call_line), Some(abstract_origin)) => Some(CallerInfo {
+            call_file,
+            call_line,
+            abstract_origin,
+        }),
+        _ => None,
+    })
+}
+
+fn find_function_name<R: gimli::Reader>(
+    entry: &DebuggingInformationEntry<R>,
+) -> Result<Option<AttributeValue<R>>> {
+    let mut name = None;
+    let mut linkage_name = None;
+    let mut attrs = entry.attrs();
+    while let Some(attr) = attrs.next()? {
+        match attr.name() {
+            constants::DW_AT_name => {
+                name = Some(attr.value());
+            }
+            constants::DW_AT_linkage_name => {
+                linkage_name = Some(attr.value());
+            }
+            _ => {}
+        }
+    }
+    Ok(linkage_name.or(name))
 }
 
 #[derive(Debug)]
@@ -365,13 +451,12 @@ mod tests {
         let mut s = String::new();
 
         for source_location in frames {
-            let name = String::new();
             let file = symbolic_common::join_path(
                 source_location.directory().unwrap_or(""),
                 source_location.path_name(),
             );
             let line = source_location.line();
-
+            let name = source_location.function_name();
             writeln!(s, "{}:{}: {}", file, line, name).unwrap();
         }
         s

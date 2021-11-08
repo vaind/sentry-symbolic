@@ -60,6 +60,15 @@ impl SourceLocationReference<'_> {
 
         &self.symcache.strings[file.path_name_idx as usize]
     }
+
+    pub fn function_name(&self) -> &str {
+        if self.source_location.function_idx == u32::MAX {
+            ""
+        } else {
+            let function = &self.symcache.functions[self.source_location.function_idx as usize];
+            &self.symcache.strings[function.name_idx as usize]
+        }
+    }
 }
 
 impl<'symcache> std::fmt::Debug for SourceLocationReference<'symcache> {

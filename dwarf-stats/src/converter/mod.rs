@@ -21,7 +21,7 @@ struct File {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct Function {
-    name: String,
+    name_idx: u32,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
