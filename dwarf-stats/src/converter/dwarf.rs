@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::{btree_map, BTreeMap, HashMap};
 use std::mem;
@@ -223,12 +224,8 @@ where
         };
         let die = self.unit.entry(die_offset)?;
         let function_name = match find_function_name(&die)? {
-            Some(name) => self
-                .dwarf
-                .attr_string(self.unit, name)?
-                .to_string()?
-                .into_owned(),
-            None => String::new(),
+            Some(name) => self.dwarf.attr_string(self.unit, name)?.to_string()?,
+            None => Cow::Borrowed(""),
         };
 
         let function_name_idx = converter.strings.insert_full(function_name).0 as u32;
