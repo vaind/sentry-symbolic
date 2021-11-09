@@ -11,8 +11,9 @@ pub struct Converter {
     strings: IndexSet<String>,
     files: IndexSet<File>,
     functions: IndexSet<Function>,
-    ranges: BTreeMap<u32, u32>,
     source_locations: IndexSet<SourceLocation>,
+    // TODO: save "unfinished" source locations directly here, and concat them in the serializer
+    ranges: BTreeMap<u32, u32>,
 }
 
 impl Converter {
@@ -20,6 +21,8 @@ impl Converter {
         // TODO: transform all the strings, for example to apply BCSymbolMaps.
     }
 }
+
+// TODO: maybe later, move all the casting to `u32` from the processor to the serializer
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct File {

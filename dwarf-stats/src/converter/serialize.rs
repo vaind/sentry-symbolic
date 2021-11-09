@@ -1,6 +1,8 @@
 use std::fmt::Display;
 use std::io::Write;
 
+use thiserror::Error;
+
 use super::error::ErrorSink;
 use super::*;
 
@@ -18,15 +20,6 @@ impl Converter {
 #[non_exhaustive]
 pub struct Stats {}
 
-// TODO: thiserror
-#[derive(Debug)]
+#[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum SerializeError {}
-
-impl Display for SerializeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("serializing symcache failed")
-    }
-}
-
-impl std::error::Error for SerializeError {}

@@ -18,6 +18,7 @@ use rand::prelude::*;
 use rand::rngs::SmallRng;
 
 mod converter;
+mod format;
 //mod hist;
 mod lookups;
 //mod stats;
