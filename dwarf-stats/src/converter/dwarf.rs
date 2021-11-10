@@ -125,11 +125,9 @@ impl Converter {
         }
 
         for (addr, source_location) in line_program_ranges {
-            let source_location_idx = self.insert_source_location(source_location);
-
             match self.ranges.entry(addr) {
                 btree_map::Entry::Vacant(entry) => {
-                    entry.insert(source_location_idx);
+                    entry.insert(source_location);
                 }
                 btree_map::Entry::Occupied(_entry) => {
                     // TODO: figure out what to do in this case? Why does it happen?
@@ -144,10 +142,6 @@ impl Converter {
         }
 
         Ok(())
-    }
-
-    fn insert_source_location(&mut self, source_location: SourceLocation) -> u32 {
-        self.source_locations.insert_full(source_location).0 as u32
     }
 }
 

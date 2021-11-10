@@ -13,8 +13,7 @@ pub struct Converter {
     files: IndexSet<File>,
     functions: IndexSet<Function>,
     source_locations: IndexSet<SourceLocation>,
-    // TODO: save "unfinished" source locations directly here, and concat them in the serializer
-    ranges: BTreeMap<u32, u32>,
+    ranges: BTreeMap<u32, SourceLocation>,
 }
 
 impl Converter {
@@ -39,9 +38,15 @@ impl Converter {
         );
         string_idx as u32
     }
+
+    fn insert_source_location(&mut self, source_location: SourceLocation) -> u32 {
+        self.source_locations.insert_full(source_location).0 as u32
+    }
 }
 
 // TODO: maybe later, move all the casting to `u32` from the processor to the serializer
+// otherwise, we might as well just use the `raw` types directly. We can then directly
+// serialize those, instead of mapping them in the serializer.
 
 #[derive(Debug)]
 struct String {
@@ -51,6 +56,7 @@ struct String {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct File {
+    // TODO: add comp_dir!
     directory_idx: Option<u32>,
     path_name_idx: u32,
 }

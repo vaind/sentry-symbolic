@@ -60,3 +60,14 @@ pub struct String {
 #[derive(Debug)]
 #[repr(C)]
 pub struct Range(pub u32);
+
+/// Returns the amount left to add to the remainder to get 8 if
+/// `to_align` isn't a multiple of 8.
+pub fn align_to_eight(to_align: usize) -> usize {
+    let remainder = to_align % 8;
+    if remainder == 0 {
+        remainder
+    } else {
+        8 - remainder
+    }
+}

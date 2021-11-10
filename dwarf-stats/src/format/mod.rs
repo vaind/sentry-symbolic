@@ -2,9 +2,10 @@ use std::{mem, ptr};
 
 mod error;
 mod lookup;
-mod raw;
+pub(crate) mod raw;
 
 pub use error::Error;
+use raw::align_to_eight;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -130,16 +131,5 @@ impl<'data> Format<'data> {
             .ok_or(Error::InvalidStringDataReference(string_idx))?;
 
         Ok(bytes)
-    }
-}
-
-/// Returns the amount left to add to the remainder to get 8 if
-/// `to_align` isn't a multiple of 8.
-fn align_to_eight(to_align: usize) -> usize {
-    let remainder = to_align % 8;
-    if remainder == 0 {
-        remainder
-    } else {
-        8 - remainder
     }
 }
