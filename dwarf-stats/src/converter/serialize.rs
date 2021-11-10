@@ -8,11 +8,11 @@ use crate::format::raw;
 
 impl Converter {
     pub fn serialize<W: Write, E: ErrorSink<SerializeError>>(
-        self,
+        mut self,
         writer: &mut W,
         error_sink: &mut E,
     ) -> std::io::Result<Stats> {
-        let writer = WriteWrapper::new(writer);
+        let mut writer = WriteWrapper::new(writer);
 
         let ranges = std::mem::take(&mut self.ranges);
         let ranges: Vec<_> = ranges

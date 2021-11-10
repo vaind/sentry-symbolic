@@ -1,3 +1,4 @@
+use std::vec;
 use std::{borrow, ops::Range};
 
 use object::{Object, ObjectSection};
@@ -140,18 +141,19 @@ pub fn lookup_new_symcache(
     converter: &Converter,
     addr: u64,
 ) -> Result<LookupResult, Box<dyn std::error::Error>> {
-    let frames = converter
-        .lookup(addr as u32)
-        .map(|source_location| {
-            let name = source_location.function_name().into();
-            let file = symbolic_common::join_path(
-                source_location.directory().unwrap_or(""),
-                source_location.path_name(),
-            );
-            let line = source_location.line();
-            LookupFrame { name, file, line }
-        })
-        .collect();
+    let frames = vec![];
+    // let frames = converter
+    //     .lookup(addr as u32)
+    //     .map(|source_location| {
+    //         let name = source_location.function_name().into();
+    //         let file = symbolic_common::join_path(
+    //             source_location.directory().unwrap_or(""),
+    //             source_location.path_name(),
+    //         );
+    //         let line = source_location.line();
+    //         LookupFrame { name, file, line }
+    //     })
+    //     .collect();
 
     Ok(LookupResult { frames })
 }

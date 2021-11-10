@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 mod dwarf;
 mod error;
-mod lookup;
+// mod lookup;
 mod serialize;
 
 #[derive(Debug, Default)]
