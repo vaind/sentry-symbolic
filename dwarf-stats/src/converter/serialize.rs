@@ -112,12 +112,9 @@ impl<W: Write> WriteWrapper<W> {
     }
 
     fn align(&mut self) -> std::io::Result<usize> {
-        let buf = &[0u8; 8];
+        let buf = &[0u8; 7];
         let len = raw::align_to_eight(self.position);
-        if len == 0 {
-            return Ok(0);
-        }
-        self.write(&buf[0..len + 1])
+        self.write(&buf[0..len])
     }
 }
 
