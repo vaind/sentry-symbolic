@@ -228,7 +228,7 @@ where
             None => Cow::Borrowed(""),
         };
 
-        let function_name_idx = converter.strings.insert_full(function_name).0 as u32;
+        let function_name_idx = converter.insert_string(function_name.as_bytes());
 
         let function_idx = converter
             .functions
@@ -253,12 +253,8 @@ where
         };
 
         let directory_idx = if let Some(dir) = file.directory(&self.header) {
-            let directory = self
-                .dwarf
-                .attr_string(self.unit, dir)?
-                .to_string_lossy()?
-                .into_owned();
-            Some(converter.strings.insert_full(directory).0 as u32)
+            let directory = self.dwarf.attr_string(self.unit, dir)?.to_string()?;
+            Some(converter.insert_string(directory.as_bytes()))
         } else {
             None
         };
@@ -266,9 +262,8 @@ where
         let path_name = self
             .dwarf
             .attr_string(self.unit, file.path_name())?
-            .to_string_lossy()?
-            .into_owned();
-        let path_name_idx = converter.strings.insert_full(path_name).0 as u32;
+            .to_string()?;
+        let path_name_idx = converter.insert_string(path_name.as_bytes());
 
         let file_idx = converter
             .files

@@ -21,6 +21,8 @@ impl Converter {
     //     pub fn transform_strings<F: FnMut(String) -> String>(&mut self, _mapper: F) {
     //         // TODO: transform all the strings, for example to apply BCSymbolMaps.
     //     }
+
+    // TODO: should we take `&[u8]` or rather `&str`?
     fn insert_string(&mut self, s: &[u8]) -> u32 {
         if let Some(existing_idx) = self.strings.get_index_of(s) {
             return existing_idx as u32;
