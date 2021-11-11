@@ -41,7 +41,7 @@ impl Converter {
             num_ranges,
             string_bytes,
         };
-        dbg!(&header);
+        //dbg!(&header);
 
         writer.write(&[header])?;
         writer.align()?;
