@@ -48,11 +48,11 @@ impl<'data> Format<'data> {
         let mut files_size = mem::size_of::<raw::File>() * header.num_files as usize;
         files_size += align_to_eight(files_size);
 
-        let mut functions_size = mem::size_of::<raw::File>() * header.num_functions as usize;
+        let mut functions_size = mem::size_of::<raw::Function>() * header.num_functions as usize;
         functions_size += align_to_eight(functions_size);
 
         let mut source_locations_size =
-            mem::size_of::<raw::File>() * header.num_source_locations as usize;
+            mem::size_of::<raw::SourceLocation>() * header.num_source_locations as usize;
         source_locations_size += align_to_eight(source_locations_size);
 
         let mut ranges_size = mem::size_of::<raw::Range>() * header.num_ranges as usize;
@@ -60,6 +60,7 @@ impl<'data> Format<'data> {
 
         let expected_buf_size = header_size
             + strings_size
+            + files_size
             + functions_size
             + source_locations_size
             + ranges_size
@@ -117,7 +118,10 @@ impl<'data> Format<'data> {
         })
     }
 
-    fn get_string(&self, string_idx: u32) -> Result<&[u8]> {
+    fn get_string(&self, string_idx: u32) -> Result<Option<&str>> {
+        if string_idx == u32::MAX {
+            return Ok(None);
+        }
         let string = self
             .strings
             .get(string_idx as usize)
@@ -130,6 +134,9 @@ impl<'data> Format<'data> {
             .get(start_offset..end_offset)
             .ok_or(Error::InvalidStringDataReference(string_idx))?;
 
-        Ok(bytes)
+        let s =
+            std::str::from_utf8(bytes).map_err(|err| Error::InvalidStringData(string_idx, err))?;
+
+        Ok(Some(s))
     }
 }

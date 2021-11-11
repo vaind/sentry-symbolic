@@ -41,41 +41,42 @@ impl Converter {
             num_ranges,
             string_bytes,
         };
+        dbg!(&header);
 
-        writer.write(&header)?;
+        writer.write(&[header])?;
         writer.align()?;
 
         for (_, s) in self.strings {
-            writer.write(&raw::String {
+            writer.write(&[raw::String {
                 string_offset: s.string_offset,
                 string_len: s.string_len,
-            })?;
+            }])?;
         }
         writer.align()?;
 
         for f in self.files {
-            writer.write(&raw::File {
+            writer.write(&[raw::File {
                 comp_dir_idx: u32::MAX,
                 directory_idx: f.directory_idx.unwrap_or(u32::MAX),
                 path_name_idx: f.path_name_idx,
-            })?;
+            }])?;
         }
         writer.align()?;
 
         for f in self.functions {
-            writer.write(&raw::Function {
+            writer.write(&[raw::Function {
                 name_idx: f.name_idx,
-            })?;
+            }])?;
         }
         writer.align()?;
 
         for s in self.source_locations {
-            writer.write(&raw::SourceLocation {
+            writer.write(&[raw::SourceLocation {
                 file_idx: s.file_idx,
                 line: s.line,
                 function_idx: s.function_idx,
                 inlined_into_idx: s.inlined_into_idx.unwrap_or(u32::MAX),
-            })?;
+            }])?;
         }
         writer.align()?;
 
@@ -101,9 +102,9 @@ impl<W: Write> WriteWrapper<W> {
         }
     }
 
-    fn write<T: ?Sized>(&mut self, data: &T) -> std::io::Result<usize> {
-        let pointer = data as *const T as *const u8;
-        let len = std::mem::size_of_val::<T>(data);
+    fn write<T>(&mut self, data: &[T]) -> std::io::Result<usize> {
+        let pointer = data.as_ptr() as *const u8;
+        let len = std::mem::size_of_val(data);
         // SAFETY: both pointer and len are derived directly from data/T and are valid.
         let buf = unsafe { std::slice::from_raw_parts(pointer, len) };
         self.writer.write_all(buf)?;

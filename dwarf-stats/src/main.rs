@@ -64,8 +64,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         print!("Creating new SymCache ");
         let start = std::time::Instant::now();
-        let converter = lookups::create_new_symcache(&mmap)?;
+        let symcache2_buf = lookups::create_new_symcache(&mmap)?;
+        let symcache2 = format::Format::parse(&symcache2_buf)?;
         println!("{:?}", start.elapsed());
+        println!(
+            "symcache size: {}",
+            symcache_buf
+                .len()
+                .file_size(file_size_opts::BINARY)
+                .unwrap()
+        );
 
         println!();
 
@@ -93,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let start = std::time::Instant::now();
         for _ in 0..1000 {
             let addr = rng.gen_range(executable_range.clone());
-            lookups::lookup_new_symcache(&converter, addr)?;
+            lookups::lookup_new_symcache(&symcache2, addr)?;
         }
         println!("{:?} (1000x)", start.elapsed());
 
@@ -105,7 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let addr = rng.gen_range(executable_range.clone());
             let a = lookups::lookup_addr2line(&ctx, addr)?;
             let s = lookups::lookup_symcache(&symcache, addr)?;
-            let n = lookups::lookup_new_symcache(&converter, addr)?;
+            let n = lookups::lookup_new_symcache(&symcache2, addr)?;
             if a != s || a != n {
                 println!();
                 println!("disagreement for 0x{:x}", addr);

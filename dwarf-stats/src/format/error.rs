@@ -29,4 +29,7 @@ pub enum Error {
     /// The string data is out of bounds.
     #[error("string data {0} out of bounds")]
     InvalidStringDataReference(u32),
+    /// The string data is invalid UTF-8.
+    #[error("string data {0} contains invalid UTF-8")]
+    InvalidStringData(u32, std::str::Utf8Error),
 }

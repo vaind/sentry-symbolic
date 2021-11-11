@@ -31,10 +31,42 @@ pub struct File<'data> {
     file: &'data raw::File,
 }
 
+impl<'data> File<'data> {
+    pub fn comp_dir(&self) -> Result<Option<&'data str>> {
+        self.format.get_string(self.file.comp_dir_idx)
+    }
+    pub fn directory(&self) -> Result<Option<&'data str>> {
+        self.format.get_string(self.file.directory_idx)
+    }
+    pub fn path_name(&self) -> Result<Option<&'data str>> {
+        self.format.get_string(self.file.path_name_idx)
+    }
+
+    pub fn full_path(&self) -> Result<Option<String>> {
+        let comp_dir = self.comp_dir()?.unwrap_or_default();
+        let directory = self.directory()?.unwrap_or_default();
+        let path_name = self.path_name()?.unwrap_or_default();
+
+        let prefix = symbolic_common::join_path(comp_dir, directory);
+        let full_path = symbolic_common::join_path(&prefix, path_name);
+        Ok(if full_path.is_empty() {
+            None
+        } else {
+            Some(full_path)
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct Function<'data> {
     format: &'data Format<'data>,
     function: &'data raw::Function,
+}
+
+impl<'data> Function<'data> {
+    pub fn name(&self) -> Result<Option<&'data str>> {
+        self.format.get_string(self.function.name_idx)
+    }
 }
 
 #[derive(Debug)]
@@ -44,7 +76,7 @@ pub struct SourceLocationIter<'data> {
 }
 
 impl<'data> SourceLocationIter<'data> {
-    fn next(&mut self) -> Result<Option<SourceLocation<'data>>> {
+    pub fn next(&mut self) -> Result<Option<SourceLocation<'data>>> {
         if self.source_location_idx == u32::MAX {
             return Ok(None);
         }
@@ -53,10 +85,13 @@ impl<'data> SourceLocationIter<'data> {
             .source_locations
             .get(self.source_location_idx as usize)
         {
-            Some(source_location) => Ok(Some(SourceLocation {
-                format: self.format,
-                source_location,
-            })),
+            Some(source_location) => {
+                self.source_location_idx = source_location.inlined_into_idx;
+                Ok(Some(SourceLocation {
+                    format: self.format,
+                    source_location,
+                }))
+            }
             None => Err(Error::InvalidSourceLocationReference(
                 self.source_location_idx,
             )),

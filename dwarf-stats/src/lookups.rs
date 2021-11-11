@@ -100,7 +100,7 @@ pub fn lookup_symcache(
     Ok(LookupResult { frames: result })
 }
 
-pub fn create_new_symcache(data: &[u8]) -> Result<Converter, Box<dyn std::error::Error>> {
+pub fn create_new_symcache(data: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let object = object::File::parse(data)?;
 
     let endian = if object.is_little_endian() {
@@ -133,27 +133,39 @@ pub fn create_new_symcache(data: &[u8]) -> Result<Converter, Box<dyn std::error:
 
     let mut converter = Converter::new();
     converter.process_dwarf(&dwarf, |_| ());
+    let mut symcache_buf = vec![];
 
-    Ok(converter)
+    converter.serialize(&mut symcache_buf, &mut |_| ())?;
+
+    Ok(symcache_buf)
 }
 
 pub fn lookup_new_symcache(
-    converter: &Converter,
+    format: &crate::format::Format,
     addr: u64,
 ) -> Result<LookupResult, Box<dyn std::error::Error>> {
-    let frames = vec![];
-    // let frames = converter
-    //     .lookup(addr as u32)
-    //     .map(|source_location| {
-    //         let name = source_location.function_name().into();
-    //         let file = symbolic_common::join_path(
-    //             source_location.directory().unwrap_or(""),
-    //             source_location.path_name(),
-    //         );
-    //         let line = source_location.line();
-    //         LookupFrame { name, file, line }
-    //     })
-    //     .collect();
+    let mut frames = format.lookup(addr);
 
-    Ok(LookupResult { frames })
+    let mut result = vec![];
+
+    while let Some(source_location) = frames.next()? {
+        let function = source_location.function()?;
+        let file = source_location.file()?;
+        let line = source_location.line();
+
+        let name = if let Some(function) = function {
+            function.name()?.unwrap_or_default().to_owned()
+        } else {
+            String::new()
+        };
+        let file = if let Some(file) = file {
+            file.full_path()?.unwrap_or_default()
+        } else {
+            String::new()
+        };
+
+        result.push(LookupFrame { name, file, line });
+    }
+
+    Ok(LookupResult { frames: result })
 }

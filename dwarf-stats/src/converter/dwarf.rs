@@ -203,6 +203,13 @@ where
         }
     }
 
+    // TODO: use this function somehow without messing up the borrow checker
+    fn insert_string(&self, converter: &mut Converter, attr: AttributeValue<R>) -> Result<u32> {
+        let attr = self.dwarf.attr_string(self.unit, attr)?;
+        let s = attr.to_string()?;
+        Ok(converter.insert_string(s.as_bytes()))
+    }
+
     fn insert_function(
         &mut self,
         converter: &mut Converter,
@@ -248,17 +255,14 @@ where
         };
 
         let directory_idx = if let Some(dir) = file.directory(&self.header) {
-            let directory = self.dwarf.attr_string(self.unit, dir)?.to_string()?;
-            Some(converter.insert_string(directory.as_bytes()))
+            let directory = self.dwarf.attr_string(self.unit, dir)?;
+            Some(converter.insert_string(directory.to_string()?.as_bytes()))
         } else {
             None
         };
 
-        let path_name = self
-            .dwarf
-            .attr_string(self.unit, file.path_name())?
-            .to_string()?;
-        let path_name_idx = converter.insert_string(path_name.as_bytes());
+        let path_name = self.dwarf.attr_string(self.unit, file.path_name())?;
+        let path_name_idx = converter.insert_string(path_name.to_string()?.as_bytes());
 
         let file_idx = converter
             .files

@@ -46,7 +46,7 @@ impl Converter {
 
 // TODO: maybe later, move all the casting to `u32` from the processor to the serializer
 // otherwise, we might as well just use the `raw` types directly. We can then directly
-// serialize those, instead of mapping them in the serializer.
+// serialize a slice of those, instead of mapping them in the serializer.
 
 #[derive(Debug)]
 struct String {
