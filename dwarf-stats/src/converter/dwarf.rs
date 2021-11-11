@@ -479,10 +479,10 @@ mod tests {
 
     #[test]
     fn work_on_dwarf() -> Result<()> {
-        with_loaded_dwarf("tests/fixtures/inlined.debug".as_ref(), |dwarf| {
+        with_loaded_dwarf("tests/fixtures/two_inlined.debug".as_ref(), |dwarf| {
             let mut converter = Converter::new();
             converter.process_dwarf(dwarf, |err| panic!("{}", err));
-            //dbg!(&converter);
+            dbg!(&converter);
 
             let mut buf = vec![];
             converter.serialize(&mut buf, |_| ())?;

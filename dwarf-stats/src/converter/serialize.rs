@@ -15,11 +15,15 @@ impl Converter {
         let mut writer = WriteWrapper::new(writer);
 
         let ranges = std::mem::take(&mut self.ranges);
+        let mut range_source_locations = Vec::with_capacity(ranges.len());
         let ranges: Vec<_> = ranges
             .into_iter()
             .filter_map(|(addr, source_location)| {
                 // TODO: filter out invalid/incomplete source locations
-                self.insert_source_location(source_location);
+                range_source_locations.push(source_location);
+                // FIXME: `insert_source_location` does deduping, which can cause problems for us
+                // here
+                // self.insert_source_location(source_location);
                 Some(addr)
             })
             .collect();
@@ -29,7 +33,8 @@ impl Converter {
         let num_strings = self.strings.len() as u32;
         let num_files = self.files.len() as u32;
         let num_functions = self.functions.len() as u32;
-        let num_source_locations = self.source_locations.len() as u32;
+        let num_source_locations =
+            (self.source_locations.len() + range_source_locations.len()) as u32;
         let num_ranges = ranges.len() as u32;
         let string_bytes = self.string_bytes.len() as u32;
 
@@ -70,6 +75,14 @@ impl Converter {
         writer.align()?;
 
         for s in self.source_locations {
+            writer.write(&[raw::SourceLocation {
+                file_idx: s.file_idx,
+                line: s.line,
+                function_idx: s.function_idx,
+                inlined_into_idx: s.inlined_into_idx.unwrap_or(u32::MAX),
+            }])?;
+        }
+        for s in range_source_locations {
             writer.write(&[raw::SourceLocation {
                 file_idx: s.file_idx,
                 line: s.line,
