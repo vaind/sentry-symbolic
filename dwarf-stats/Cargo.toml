@@ -17,3 +17,19 @@ rand = { version = "0.8.3", features = ["small_rng"] }
 indexmap = "1.7.0"
 humansize = "1.1.1"
 thiserror = "1.0.30"
+
+[dev-dependencies]
+criterion = { version = "0.3.5", features = ["html_reports"] }
+
+[[bench]]
+name = "symcache_comparison_external"
+harness = false
+
+[lib]
+name = "dwarf_stats"
+path = "src/lib.rs"
+
+
+[[bin]]
+name = "dwarf-stats"
+path = "src/main.rs"
