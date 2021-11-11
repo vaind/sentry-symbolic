@@ -68,8 +68,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let symcache2 = format::Format::parse(&symcache2_buf)?;
         println!("{:?}", start.elapsed());
         println!(
-            "symcache size: {}",
-            symcache_buf
+            "symcache2 size: {}",
+            symcache2_buf
                 .len()
                 .file_size(file_size_opts::BINARY)
                 .unwrap()
