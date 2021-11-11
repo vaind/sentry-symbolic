@@ -10,7 +10,7 @@ impl Converter {
     pub fn serialize<W: Write, E: ErrorSink<SerializeError>>(
         mut self,
         writer: &mut W,
-        error_sink: &mut E,
+        mut error_sink: E,
     ) -> std::io::Result<Stats> {
         let mut writer = WriteWrapper::new(writer);
 

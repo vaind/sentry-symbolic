@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::{btree_map, BTreeMap, HashMap};
 use std::mem;
@@ -407,11 +406,10 @@ fn parse_line_program<R: gimli::Reader>(
 mod tests {
     use std::fmt::Write;
     use std::path::Path;
+    use std::string::String;
     use std::{borrow, fs};
 
     use object::{Object, ObjectSection};
-
-    // use crate::converter::lookup::SourceLocationIter;
 
     use super::*;
 
@@ -455,41 +453,55 @@ mod tests {
         f(&dwarf)
     }
 
-    // fn print_frames(frames: SourceLocationIter) -> String {
-    //     let mut s = String::new();
+    fn print_frames(mut frames: crate::format::SourceLocationIter<'_>) -> Result<String> {
+        let mut s = String::new();
 
-    //     for source_location in frames {
-    //         let file = symbolic_common::join_path(
-    //             source_location.directory().unwrap_or(""),
-    //             source_location.path_name(),
-    //         );
-    //         let line = source_location.line();
-    //         let name = source_location.function_name();
-    //         writeln!(s, "{}:{}: {}", file, line, name).unwrap();
-    //     }
-    //     s
-    // }
+        while let Some(source_location) = frames.next()? {
+            let function = source_location.function()?;
+            let file = source_location.file()?;
+            let line = source_location.line();
 
-    // #[test]
-    // fn work_on_dwarf() -> Result<()> {
-    //     with_loaded_dwarf("tests/fixtures/two_inlined.debug".as_ref(), |dwarf| {
-    //         let mut converter = Converter::new();
-    //         converter.process_dwarf(dwarf, |err| panic!("{}", err));
+            let name = if let Some(function) = function {
+                function.name()?.unwrap_or_default().to_owned()
+            } else {
+                String::new()
+            };
+            let file = if let Some(file) = file {
+                file.full_path()?.unwrap_or_default()
+            } else {
+                String::new()
+            };
 
-    //         dbg!(&converter);
+            writeln!(s, "{}:{}: {}", file, line, name).unwrap();
+        }
+        Ok(s)
+    }
 
-    //         println!("0x{:x}:", 0x10f0);
-    //         println!("{}", print_frames(converter.lookup(0x10f0)));
-    //         println!("0x{:x}:", 0x10f2);
-    //         println!("{}", print_frames(converter.lookup(0x10f2)));
-    //         println!("0x{:x}:", 0x10f8);
-    //         println!("{}", print_frames(converter.lookup(0x10f8)));
-    //         println!("0x{:x}:", 0x10f9);
-    //         println!("{}", print_frames(converter.lookup(0x10f9)));
-    //         println!("0x{:x}:", 0x10ff);
-    //         println!("{}", print_frames(converter.lookup(0x10ff)));
+    #[test]
+    fn work_on_dwarf() -> Result<()> {
+        with_loaded_dwarf("tests/fixtures/inlined.debug".as_ref(), |dwarf| {
+            let mut converter = Converter::new();
+            converter.process_dwarf(dwarf, |err| panic!("{}", err));
+            //dbg!(&converter);
 
-    //         Ok(())
-    //     })
-    // }
+            let mut buf = vec![];
+            converter.serialize(&mut buf, |_| ())?;
+            let symcache = crate::format::Format::parse(&buf)?;
+
+            println!("0x{:x}:", 0x10ef);
+            println!("{}", print_frames(symcache.lookup(0x10ef))?);
+            println!("0x{:x}:", 0x10f0);
+            println!("{}", print_frames(symcache.lookup(0x10f0))?);
+            println!("0x{:x}:", 0x10f2);
+            println!("{}", print_frames(symcache.lookup(0x10f2))?);
+            println!("0x{:x}:", 0x10f8);
+            println!("{}", print_frames(symcache.lookup(0x10f8))?);
+            println!("0x{:x}:", 0x10f9);
+            println!("{}", print_frames(symcache.lookup(0x10f9))?);
+            println!("0x{:x}:", 0x10ff);
+            println!("{}", print_frames(symcache.lookup(0x10ff))?);
+
+            Ok(())
+        })
+    }
 }

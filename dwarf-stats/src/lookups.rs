@@ -135,7 +135,7 @@ pub fn create_new_symcache(data: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::E
     converter.process_dwarf(&dwarf, |_| ());
     let mut symcache_buf = vec![];
 
-    converter.serialize(&mut symcache_buf, &mut |_| ())?;
+    converter.serialize(&mut symcache_buf, |_| ())?;
 
     Ok(symcache_buf)
 }
