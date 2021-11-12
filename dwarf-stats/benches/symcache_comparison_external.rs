@@ -18,7 +18,10 @@ fn random_addresses(range: &Range<u64>, rng: &mut SmallRng) -> [u64; 1000] {
 }
 
 pub fn creation(c: &mut Criterion) {
-    let file = fs::File::open(&DEBUG_PATH).unwrap();
+    let file = match fs::File::open(&DEBUG_PATH) {
+        Ok(file) => file,
+        Err(_) => return,
+    };
     let mmap = unsafe { memmap::Mmap::map(&file).unwrap() };
 
     // create the two contexts
@@ -42,7 +45,10 @@ pub fn creation(c: &mut Criterion) {
 }
 
 pub fn lookup(c: &mut Criterion) {
-    let file = fs::File::open(&DEBUG_PATH).unwrap();
+    let file = match fs::File::open(&DEBUG_PATH) {
+        Ok(file) => file,
+        Err(_) => return,
+    };
     let mmap = unsafe { memmap::Mmap::map(&file).unwrap() };
 
     let object = object::File::parse(mmap.as_ref()).unwrap();
