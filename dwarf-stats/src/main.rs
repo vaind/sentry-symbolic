@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         print!("Creating new SymCache ");
         let start = std::time::Instant::now();
         let symcache2_buf = lookups::create_new_symcache(&mmap)?;
-        let symcache2 = format::Format::parse(&symcache2_buf)?;
+        let symcache2 = Format::parse(&symcache2_buf)?;
         println!("{:?}", start.elapsed());
         println!(
             "symcache2 size: {}",

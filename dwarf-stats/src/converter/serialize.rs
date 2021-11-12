@@ -12,29 +12,18 @@ impl Converter {
     /// This writes the SymCache binary format into the given [`Write`].
     /// Any errors raised during serialization will be handed to the given [`ErrorSink`].
     pub fn serialize<W: Write, E: ErrorSink<SerializeError>>(
-        mut self,
+        self,
         writer: &mut W,
         mut error_sink: E,
     ) -> std::io::Result<Stats> {
         let _ = &mut error_sink;
         let mut writer = WriteWrapper::new(writer);
 
-        let ranges = std::mem::take(&mut self.ranges);
-        let mut range_source_locations = Vec::with_capacity(ranges.len());
-        let ranges: Vec<_> = ranges
-            .into_iter()
-            .map(|(addr, source_location)| {
-                range_source_locations.push(source_location);
-                Some(addr)
-            })
-            .collect();
-
         let num_strings = self.strings.len() as u32;
         let num_files = self.files.len() as u32;
         let num_functions = self.functions.len() as u32;
-        let num_source_locations =
-            (self.source_locations.len() + range_source_locations.len()) as u32;
-        let num_ranges = ranges.len() as u32;
+        let num_source_locations = (self.source_locations.len() + self.ranges.len()) as u32;
+        let num_ranges = self.ranges.len() as u32;
         let string_bytes = self.string_bytes.len() as u32;
 
         let header = raw::Header {
@@ -83,7 +72,7 @@ impl Converter {
                 inlined_into_idx: s.inlined_into_idx.unwrap_or(u32::MAX),
             }])?;
         }
-        for s in range_source_locations {
+        for s in self.ranges.values() {
             writer.write(&[raw::SourceLocation {
                 file_idx: s.file_idx,
                 line: s.line,
@@ -93,7 +82,9 @@ impl Converter {
         }
         writer.align()?;
 
-        writer.write(&ranges)?;
+        for r in self.ranges.keys() {
+            writer.write(&[raw::Range(*r)])?;
+        }
         writer.align()?;
 
         writer.write(&self.string_bytes)?;

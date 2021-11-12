@@ -171,4 +171,7 @@ impl SourceLocation<'_> {
             None => Err(Error::InvalidFunctionReference(function_idx)),
         }
     }
+
+    // TODO: maybe forward some of the `File` and `Function` accessors, such as:
+    // `function_name` or `full_path` for convenience.
 }

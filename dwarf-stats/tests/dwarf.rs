@@ -7,30 +7,22 @@ use object::{Object, ObjectSection};
 use dwarf_stats::*;
 
 #[test]
-fn work_on_simple() {
+fn works_on_simple() {
     let buf = create_symcache("tests/fixtures/simple.debug").unwrap();
     let symcache = Format::parse(&buf).unwrap();
 
-    let lookup = symcache
-        .lookup(0x10ef)
-        .next()
-        .unwrap()
-        .map(ResolvedFrame::from);
-    assert_eq!(lookup, None);
+    assert_eq!(&resolve_lookup(&symcache, 0x10ef), &[]);
 
-    let lookup = symcache
-        .lookup(0x10f0)
-        .next()
-        .unwrap()
-        .map(ResolvedFrame::from);
     assert_eq!(
-        lookup,
-        Some(ResolvedFrame {
-            function: "".into(),
-            file: "".into(),
-            line: 0
-        })
+        &resolve_lookup(&symcache, 0x10f2),
+        &[ResolvedFrame {
+            function: "simple_fn".into(),
+            file: "/root-comp-dir/simple.rs".into(),
+            line: 5
+        }]
     );
+
+    // TODO: assert that we can resolve non-DWARF symbols
 }
 
 fn create_symcache(file: impl AsRef<Path>) -> Result<Vec<u8>> {
@@ -39,10 +31,21 @@ fn create_symcache(file: impl AsRef<Path>) -> Result<Vec<u8>> {
         converter.process_dwarf(dwarf, |err| panic!("{}", err));
 
         let mut buf = vec![];
-        converter.serialize(&mut buf, |_| ())?;
+        converter.serialize(&mut buf, |err| panic!("{}", err))?;
 
         Ok(buf)
     })
+}
+
+fn resolve_lookup(symcache: &Format<'_>, addr: u64) -> Vec<ResolvedFrame> {
+    let mut lookup = symcache.lookup(addr);
+    let mut resolved = vec![];
+
+    while let Some(frame) = lookup.next().unwrap() {
+        resolved.push(ResolvedFrame::from(frame));
+    }
+
+    resolved
 }
 
 #[derive(Debug, PartialEq)]
