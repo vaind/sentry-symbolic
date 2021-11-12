@@ -37,7 +37,7 @@ fn create_symcache(file: impl AsRef<Path>) -> Result<Vec<u8>> {
     })
 }
 
-fn resolve_lookup(symcache: &Format<'_>, addr: u64) -> Vec<ResolvedFrame> {
+pub fn resolve_lookup(symcache: &Format<'_>, addr: u64) -> Vec<ResolvedFrame> {
     let mut lookup = symcache.lookup(addr);
     let mut resolved = vec![];
 
@@ -49,7 +49,7 @@ fn resolve_lookup(symcache: &Format<'_>, addr: u64) -> Vec<ResolvedFrame> {
 }
 
 #[derive(Debug, PartialEq)]
-struct ResolvedFrame {
+pub struct ResolvedFrame {
     function: String,
     file: String,
     line: u32,

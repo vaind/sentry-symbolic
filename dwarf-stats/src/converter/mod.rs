@@ -3,6 +3,7 @@
 use indexmap::{set::IndexSet, IndexMap};
 use std::collections::BTreeMap;
 
+mod breakpad;
 mod dwarf;
 mod serialize;
 
