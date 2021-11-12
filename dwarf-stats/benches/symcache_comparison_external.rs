@@ -1,4 +1,5 @@
 use std::fs;
+use std::ops::Range;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use rand::prelude::*;
@@ -8,37 +9,35 @@ use dwarf_stats::{format, lookups};
 
 const DEBUG_PATH: &str = "testcases/libc6.debug";
 
+fn random_addresses(range: &Range<u64>, rng: &mut SmallRng) -> [u64; 1000] {
+    let mut addresses = [0; 1000];
+    for i in 0..1000 {
+        addresses[i] = rng.gen_range(range.clone());
+    }
+    addresses
+}
+
 pub fn creation(c: &mut Criterion) {
     let file = fs::File::open(&DEBUG_PATH).unwrap();
     let mmap = unsafe { memmap::Mmap::map(&file).unwrap() };
 
     // create the two contexts
     let mut group = c.benchmark_group("Cache creation");
-    group.bench_with_input(
-        BenchmarkId::new("addr2line", DEBUG_PATH),
-        &mmap,
-        |b, mmap| b.iter(|| lookups::create_addr2line(mmap).unwrap()),
-    );
-    group.bench_with_input(
-        BenchmarkId::new("old symcache", DEBUG_PATH),
-        &mmap,
-        |b, mmap| {
-            b.iter(|| {
-                let symcache_buf = lookups::create_symcache(mmap).unwrap();
-                symbolic_symcache::SymCache::parse(&symcache_buf).unwrap();
-            })
-        },
-    );
-    group.bench_with_input(
-        BenchmarkId::new("new symcache", DEBUG_PATH),
-        &mmap,
-        |b, mmap| {
-            b.iter(|| {
-                let symcache_buf = lookups::create_new_symcache(mmap).unwrap();
-                format::Format::parse(&symcache_buf).unwrap();
-            })
-        },
-    );
+    group.bench_function(BenchmarkId::new("addr2line", DEBUG_PATH), |b| {
+        b.iter(|| lookups::create_addr2line(&mmap).unwrap())
+    });
+    group.bench_function(BenchmarkId::new("old symcache", DEBUG_PATH), |b| {
+        b.iter(|| {
+            let symcache_buf = lookups::create_symcache(&mmap).unwrap();
+            symbolic_symcache::SymCache::parse(&symcache_buf).unwrap();
+        })
+    });
+    group.bench_function(BenchmarkId::new("new symcache", DEBUG_PATH), |b| {
+        b.iter(|| {
+            let symcache_buf = lookups::create_new_symcache(&mmap).unwrap();
+            format::Format::parse(&symcache_buf).unwrap();
+        })
+    });
     group.finish();
 }
 
@@ -48,6 +47,8 @@ pub fn lookup(c: &mut Criterion) {
 
     let object = object::File::parse(mmap.as_ref()).unwrap();
     let executable_range = lookups::get_executable_range(&object);
+    let mut rng = SmallRng::seed_from_u64(0);
+    let addresses = random_addresses(&executable_range, &mut rng);
 
     let addr2line_ctx = lookups::create_addr2line(&mmap).unwrap();
     let symcache_buf_old = lookups::create_symcache(&mmap).unwrap();
@@ -56,42 +57,29 @@ pub fn lookup(c: &mut Criterion) {
     let symcache_new = format::Format::parse(&symcache_buf_new).unwrap();
 
     let mut group = c.benchmark_group("Address lookup");
+    group.bench_function(BenchmarkId::new("addr2line", DEBUG_PATH), |b| {
+        b.iter(|| {
+            for addr in addresses {
+                lookups::lookup_addr2line(&addr2line_ctx, addr).unwrap();
+            }
+        })
+    });
 
-    let mut rng = SmallRng::seed_from_u64(0);
-    group.bench_with_input(
-        BenchmarkId::new("addr2line", DEBUG_PATH),
-        &addr2line_ctx,
-        |b, ctx| {
-            b.iter(|| {
-                let addr = rng.gen_range(executable_range.clone());
-                lookups::lookup_addr2line(ctx, addr).unwrap();
-            })
-        },
-    );
+    group.bench_function(BenchmarkId::new("old symcache", DEBUG_PATH), |b| {
+        b.iter(|| {
+            for addr in addresses {
+                lookups::lookup_symcache(&symcache_old, addr).unwrap();
+            }
+        })
+    });
 
-    let mut rng = SmallRng::seed_from_u64(0);
-    group.bench_with_input(
-        BenchmarkId::new("old symcache", DEBUG_PATH),
-        &symcache_old,
-        |b, symcache| {
-            b.iter(|| {
-                let addr = rng.gen_range(executable_range.clone());
-                lookups::lookup_symcache(symcache, addr).unwrap();
-            })
-        },
-    );
-
-    let mut rng = SmallRng::seed_from_u64(0);
-    group.bench_with_input(
-        BenchmarkId::new("new symcache", DEBUG_PATH),
-        &symcache_new,
-        |b, symcache| {
-            b.iter(|| {
-                let addr = rng.gen_range(executable_range.clone());
-                lookups::lookup_new_symcache(symcache, addr).unwrap();
-            })
-        },
-    );
+    group.bench_function(BenchmarkId::new("new symcache", DEBUG_PATH), |b| {
+        b.iter(|| {
+            for addr in addresses {
+                lookups::lookup_new_symcache(&symcache_new, addr).unwrap();
+            }
+        })
+    });
     group.finish();
 }
 

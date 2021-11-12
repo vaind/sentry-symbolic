@@ -22,6 +22,10 @@ thiserror = "1.0.30"
 criterion = { version = "0.3.5", features = ["html_reports"] }
 
 [[bench]]
+name = "symcache_comparison"
+harness = false
+
+[[bench]]
 name = "symcache_comparison_external"
 harness = false
 
