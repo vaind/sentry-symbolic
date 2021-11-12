@@ -2,33 +2,32 @@ use std::io::Write;
 
 use thiserror::Error;
 
-use super::error::ErrorSink;
 use super::*;
 use crate::format::raw;
+use crate::ErrorSink;
 
 impl Converter {
+    /// Serialize the converted data.
+    ///
+    /// This writes the SymCache binary format into the given [`Write`].
+    /// Any errors raised during serialization will be handed to the given [`ErrorSink`].
     pub fn serialize<W: Write, E: ErrorSink<SerializeError>>(
         mut self,
         writer: &mut W,
         mut error_sink: E,
     ) -> std::io::Result<Stats> {
+        let _ = &mut error_sink;
         let mut writer = WriteWrapper::new(writer);
 
         let ranges = std::mem::take(&mut self.ranges);
         let mut range_source_locations = Vec::with_capacity(ranges.len());
         let ranges: Vec<_> = ranges
             .into_iter()
-            .filter_map(|(addr, source_location)| {
-                // TODO: filter out invalid/incomplete source locations
+            .map(|(addr, source_location)| {
                 range_source_locations.push(source_location);
-                // FIXME: `insert_source_location` does deduping, which can cause problems for us
-                // here
-                // self.insert_source_location(source_location);
                 Some(addr)
             })
             .collect();
-
-        // TODO: check that these are < u32::MAX and raise an error in that case
 
         let num_strings = self.strings.len() as u32;
         let num_files = self.files.len() as u32;
@@ -39,6 +38,8 @@ impl Converter {
         let string_bytes = self.string_bytes.len() as u32;
 
         let header = raw::Header {
+            magic: raw::SYMCACHE_MAGIC,
+            version: raw::SYMCACHE_VERSION,
             num_strings,
             num_files,
             num_functions,
@@ -131,10 +132,12 @@ impl<W: Write> WriteWrapper<W> {
     }
 }
 
+/// Some statistics about the finished/serialized SymCache.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct Stats {}
 
+/// Errors than can happen during SymCache serialization.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum SerializeError {}

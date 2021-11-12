@@ -1,6 +1,10 @@
 use super::{raw, Error, Format, Result};
 
 impl Format<'_> {
+    /// Looks up an instruction address in the SymCache, yielding an iterator of [`SourceLocation`]s.
+    ///
+    /// This always returns an iterator, however that iterator might be empty in case no [`SourceLocation`]
+    /// was found for the given `addr`.
     pub fn lookup(&self, addr: u64) -> SourceLocationIter<'_> {
         let source_location_start = (self.source_locations.len() - self.ranges.len()) as u32;
         let source_location_idx = match self.ranges.binary_search_by_key(&(addr as u32), |r| r.0) {
@@ -25,6 +29,25 @@ impl Format<'_> {
     }
 }
 
+/// A source File included in the SymCache.
+///
+/// Source files can have up to three path prefixes/fragments.
+/// They are in the order of `comp_dir`, `directory`, `path_name`.
+/// If a later fragment is an absolute path, it overrides the previous fragment.
+///
+/// The [`File::full_path`] method yields the final concatenated and resolved path.
+///
+/// # Examples
+///
+/// Considering that a C project is being compiled inside the `/home/XXX/sentry-native/` directory,
+/// - The `/home/XXX/sentry-native/src/sentry_core.c` may have the following fragments:
+///   - comp_dir: /home/XXX/sentry-native/
+///   - directory: -
+///   - path_name: src/sentry_core.c
+/// - The included file `/usr/include/pthread.h` may have the following fragments:
+///   - comp_dir: /home/XXX/sentry-native/ <- The comp_dir is defined, but overrided by the dir below
+///   - directory: /usr/include/
+///   - path_name: pthread.h
 #[derive(Debug)]
 pub struct File<'data> {
     format: &'data Format<'data>,
@@ -32,16 +55,22 @@ pub struct File<'data> {
 }
 
 impl<'data> File<'data> {
+    /// Resolves the compilation directory of this source file.
     pub fn comp_dir(&self) -> Result<Option<&'data str>> {
         self.format.get_string(self.file.comp_dir_idx)
     }
+
+    /// Resolves the parent directory of this source file.
     pub fn directory(&self) -> Result<Option<&'data str>> {
         self.format.get_string(self.file.directory_idx)
     }
+
+    /// Resolves the final path name fragment of this source file.
     pub fn path_name(&self) -> Result<Option<&'data str>> {
         self.format.get_string(self.file.path_name_idx)
     }
 
+    /// Resolves and concatenates the full path based on its individual fragments.
     pub fn full_path(&self) -> Result<Option<String>> {
         let comp_dir = self.comp_dir()?.unwrap_or_default();
         let directory = self.directory()?.unwrap_or_default();
@@ -57,6 +86,7 @@ impl<'data> File<'data> {
     }
 }
 
+/// A Function definition as included in the SymCache.
 #[derive(Debug)]
 pub struct Function<'data> {
     format: &'data Format<'data>,
@@ -64,11 +94,13 @@ pub struct Function<'data> {
 }
 
 impl<'data> Function<'data> {
+    /// The possibly mangled name/symbol of this function.
     pub fn name(&self) -> Result<Option<&'data str>> {
         self.format.get_string(self.function.name_idx)
     }
 }
 
+/// An Iterator that yields [`SourceLocation`]s, representing an inlining hierarchy.
 #[derive(Debug)]
 pub struct SourceLocationIter<'data> {
     format: &'data Format<'data>,
@@ -76,6 +108,9 @@ pub struct SourceLocationIter<'data> {
 }
 
 impl<'data> SourceLocationIter<'data> {
+    /// Yields the next [`SourceLocation`] in the inlining hierarchy.
+    // We return a `Result` here, so its not a *real* `Iterator`
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Result<Option<SourceLocation<'data>>> {
         if self.source_location_idx == u32::MAX {
             return Ok(None);
@@ -99,6 +134,10 @@ impl<'data> SourceLocationIter<'data> {
     }
 }
 
+/// A Source Location as included in the SymCache.
+///
+/// The source location represents a `(function, file, line, inlined_into)` tuple corresponding to
+/// an instruction in the executable.
 #[derive(Debug)]
 pub struct SourceLocation<'data> {
     format: &'data Format<'data>,
@@ -106,14 +145,19 @@ pub struct SourceLocation<'data> {
 }
 
 impl SourceLocation<'_> {
+    /// The source line corresponding to the instruction.
+    ///
+    /// This might return `0` when no line information can be found.
     pub fn line(&self) -> u32 {
         self.source_location.line
     }
 
+    /// The source file corresponding to the instruction.
     pub fn file(&self) -> Result<Option<File<'_>>> {
         self.format.get_file(self.source_location.file_idx)
     }
 
+    /// The function corresponding to the instruction.
     pub fn function(&self) -> Result<Option<Function<'_>>> {
         let function_idx = self.source_location.function_idx;
         if function_idx == u32::MAX {

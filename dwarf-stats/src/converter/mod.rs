@@ -1,10 +1,17 @@
+//! Defines the SymCache [`Converter`].
+
 use indexmap::{set::IndexSet, IndexMap};
 use std::collections::BTreeMap;
 
 mod dwarf;
-mod error;
 mod serialize;
 
+pub use serialize::*;
+
+/// The SymCache Converter.
+///
+/// This can convert data in various source formats to an intermediate representation, which can
+/// then be serialized to disk via its [`Converter::serialize`] method.
 #[derive(Debug, Default)]
 pub struct Converter {
     string_bytes: Vec<u8>,
@@ -16,6 +23,10 @@ pub struct Converter {
 }
 
 impl Converter {
+    /// Creates a new Converter.
+    pub fn new() -> Self {
+        Self::default()
+    }
     //     pub fn transform_strings<F: FnMut(String) -> String>(&mut self, _mapper: F) {
     //         // TODO: transform all the strings, for example to apply BCSymbolMaps.
     //     }
@@ -43,9 +54,10 @@ impl Converter {
     }
 }
 
-// TODO: maybe later, move all the casting to `u32` from the processor to the serializer
-// otherwise, we might as well just use the `raw` types directly. We can then directly
-// serialize a slice of those, instead of mapping them in the serializer.
+// TODO: not sure if we should rather use "fully-typed" structs here that have `Option`s and `usize`s.
+// Or rather completely switch to using `raw` types (with `u32::MAX` markers and `u32` indices).
+// Currently this is a mix of both, with a bunch of type casts and `u32::MAX` checks in between, so
+// essentially the worst of both worlds, lol.
 
 #[derive(Debug)]
 struct String {
@@ -71,10 +83,4 @@ struct SourceLocation {
     line: u32,
     function_idx: u32,
     inlined_into_idx: Option<u32>,
-}
-
-impl Converter {
-    pub fn new() -> Self {
-        Self::default()
-    }
 }

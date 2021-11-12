@@ -1,15 +1,9 @@
-//! A simple program to gather some stats about DWARF info, to answer the
-//! following questions:
+//! A small utility program that compares SymCache versions.
 //!
-//! - What is the distribution / histogram / number of smallest
-//!   address ranges / line-mappings (looking at the line programs)
-//! - Get a histogram of the function ranges (how big are functions)
-//! - Histogram of line programs per function ?
-//! - Number of unique files/dirs and functions.
-//!
-//! Started out as a copy of:
-//! - https://github.com/gimli-rs/gimli/blob/master/examples/simple.rs
-//! - https://github.com/gimli-rs/gimli/blob/master/examples/simple_line.rs
+//! This compares creation and lookup times, as well as file sizes, for:
+//! gimli::addr2line, symbolic-symcache, and the new SymCache format.
+
+#![warn(missing_docs)]
 
 use std::{env, fs};
 
@@ -17,11 +11,7 @@ use humansize::{file_size_opts, FileSize};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
 
-mod converter;
-mod format;
-//mod hist;
-mod lookups;
-//mod stats;
+pub use dwarf_stats::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     for path in env::args().skip(1) {

@@ -9,12 +9,17 @@ use gimli::{
     LineProgramHeader, ReaderOffset, Unit, UnitOffset,
 };
 
-use super::error::ErrorSink;
 use super::*;
+use crate::ErrorSink;
 
 type Result<T, E = gimli::Error> = std::result::Result<T, E>;
 
 impl Converter {
+    /// Processes the given [`Dwarf`] file.
+    ///
+    /// This feeds any errors that were raised during processing into the given [`ErrorSink`].
+    /// Currently, errors are being captured at the granularity of a DWARF compilation unit, but
+    /// more fine grained errors may be raised in the future.
     pub fn process_dwarf<R: gimli::Reader, E: ErrorSink<gimli::Error>>(
         &mut self,
         dwarf: &Dwarf<R>,
@@ -41,12 +46,13 @@ impl Converter {
         }
     }
 
+    /// Process a single DWARF compilation unit.
     fn process_dwarf_cu<R: gimli::Reader, E: ErrorSink<gimli::Error>>(
         &mut self,
         reusable_cache: &mut ReusableCaches,
         dwarf: &Dwarf<R>,
         unit: &Unit<R>,
-        error_sink: &mut E,
+        _error_sink: &mut E,
     ) -> Result<()> {
         // Construct LineRow Sequences.
         let line_program = match unit.line_program.clone() {
@@ -144,6 +150,7 @@ impl Converter {
     }
 }
 
+/// Returns an iterator of [`SourceLocation`]s that match the given [`gimli::Range`].
 fn sub_ranges<'a>(
     ranges: &'a mut BTreeMap<u32, SourceLocation>,
     range: &gimli::Range,
@@ -158,6 +165,9 @@ fn sub_ranges<'a>(
     ranges.range_mut((lower_bound, upper_bound)).map(|(_, v)| v)
 }
 
+/// A collection of caches that are being re-used across compilation units.
+///
+/// Only the *allocation* is being reused, not the actual data. The data is cleared on each CU.
 #[derive(Debug, Default)]
 struct ReusableCaches {
     file_mapping: HashMap<u32, u32>,
@@ -171,6 +181,7 @@ impl ReusableCaches {
     }
 }
 
+/// This is a per-compilation unit Cache which caches file and function conversions.
 #[derive(Debug)]
 struct PerCuCache<'dwarf, R: gimli::Reader> {
     dwarf: &'dwarf Dwarf<R>,
@@ -202,13 +213,20 @@ where
         }
     }
 
+    /// Insert a string identified by the [`AttributeValue`] into the global string table.
+    ///
+    /// Returns the index of the string in the global string table.
     // TODO: use this function somehow without messing up the borrow checker
+    #[allow(dead_code)]
     fn insert_string(&self, converter: &mut Converter, attr: AttributeValue<R>) -> Result<u32> {
         let attr = self.dwarf.attr_string(self.unit, attr)?;
         let s = attr.to_string()?;
         Ok(converter.insert_string(s.as_bytes()))
     }
 
+    /// Inserts a function identified by the [`UnitOffset`] into the global function table.
+    ///
+    /// Returns the index of the function in the global function table.
     fn insert_function(
         &mut self,
         converter: &mut Converter,
@@ -243,6 +261,9 @@ where
         Ok(function_idx)
     }
 
+    /// Insert a file identified by the per-compilation unit file index into the global file table.
+    ///
+    /// Returns the index of the file in the global file table.
     fn insert_file(&mut self, converter: &mut Converter, file_index: u64) -> Result<u32> {
         let entry = match self.reusable_cache.file_mapping.entry(file_index as u32) {
             Entry::Occupied(e) => return Ok(*e.get()),
@@ -277,6 +298,10 @@ where
     }
 }
 
+/// Returns the caller information of [`constants::DW_TAG_inlined_subroutine`] DIE entry.
+///
+/// The caller information includes the [`constants::DW_AT_call_file`], [`constants::DW_AT_call_line`],
+/// and the function metadata of the inlined function.
 #[derive(Debug)]
 struct CallerInfo<R: gimli::Reader> {
     call_file: u64,
@@ -339,6 +364,7 @@ fn find_function_name<R: gimli::Reader>(
     Ok(linkage_name.or(name))
 }
 
+/// A sequence of contiguous [`LineProgramRow`]s spanning the address ranges `start` to `end`.
 #[derive(Debug)]
 pub struct LineSequence {
     start: u64,
@@ -346,6 +372,10 @@ pub struct LineSequence {
     rows: Vec<LineProgramRow>,
 }
 
+/// Represents a row in the DWARF line program.
+///
+/// A row is essentially a mapping from `address` to `file_index` and `line`.
+/// The `line` can be `0` under some circumstances.
 #[derive(Debug)]
 pub struct LineProgramRow {
     address: u64,
@@ -353,6 +383,7 @@ pub struct LineProgramRow {
     line: u32,
 }
 
+/// Completely resolve the given [`IncompleteLineProgram`] into a list of [`LineSequence`]s.
 // Adapted from: https://github.com/gimli-rs/addr2line/blob/ce1aa2c056c0f0164feafa1ef4d886e50a72b2d7/src/lib.rs#L563-L622
 fn parse_line_program<R: gimli::Reader>(
     ilnp: IncompleteLineProgram<R>,
@@ -400,108 +431,4 @@ fn parse_line_program<R: gimli::Reader>(
     sequences.sort_by_key(|x| x.start);
 
     Ok(sequences)
-}
-
-#[cfg(test)]
-mod tests {
-    use std::fmt::Write;
-    use std::path::Path;
-    use std::string::String;
-    use std::{borrow, fs};
-
-    use object::{Object, ObjectSection};
-
-    use super::*;
-
-    type Dwarf<'a> = gimli::Dwarf<gimli::EndianSlice<'a, gimli::RunTimeEndian>>;
-    type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
-
-    fn with_loaded_dwarf<T, F: FnOnce(&Dwarf) -> Result<T>>(path: &Path, f: F) -> Result<T> {
-        let file = fs::File::open(&path).unwrap();
-        let mmap = unsafe { memmap::Mmap::map(&file).unwrap() };
-        let object = object::File::parse(mmap.as_ref())?;
-
-        let endian = if object.is_little_endian() {
-            gimli::RunTimeEndian::Little
-        } else {
-            gimli::RunTimeEndian::Big
-        };
-
-        // Load a section and return as `Cow<[u8]>`.
-        let load_section = |id: gimli::SectionId| -> Result<borrow::Cow<[u8]>, gimli::Error> {
-            match object.section_by_name(id.name()) {
-                Some(ref section) => Ok(section
-                    .uncompressed_data()
-                    .unwrap_or(borrow::Cow::Borrowed(&[][..]))),
-                None => Ok(borrow::Cow::Borrowed(&[][..])),
-            }
-        };
-
-        // Load all of the sections.
-        let dwarf_cow = gimli::Dwarf::load(&load_section)?;
-
-        // Borrow a `Cow<[u8]>` to create an `EndianSlice`.
-        let borrow_section: &dyn for<'a> Fn(
-            &'a borrow::Cow<[u8]>,
-        )
-            -> gimli::EndianSlice<'a, gimli::RunTimeEndian> =
-            &|section| gimli::EndianSlice::new(&*section, endian);
-
-        // Create `EndianSlice`s for all of the sections.
-        let dwarf = dwarf_cow.borrow(&borrow_section);
-
-        f(&dwarf)
-    }
-
-    fn print_frames(mut frames: crate::format::SourceLocationIter<'_>) -> Result<String> {
-        let mut s = String::new();
-
-        while let Some(source_location) = frames.next()? {
-            let function = source_location.function()?;
-            let file = source_location.file()?;
-            let line = source_location.line();
-
-            let name = if let Some(function) = function {
-                function.name()?.unwrap_or_default().to_owned()
-            } else {
-                String::new()
-            };
-            let file = if let Some(file) = file {
-                file.full_path()?.unwrap_or_default()
-            } else {
-                String::new()
-            };
-
-            writeln!(s, "{}:{}: {}", file, line, name).unwrap();
-        }
-        Ok(s)
-    }
-
-    #[test]
-    fn work_on_dwarf() -> Result<()> {
-        with_loaded_dwarf("tests/fixtures/two_inlined.debug".as_ref(), |dwarf| {
-            let mut converter = Converter::new();
-            converter.process_dwarf(dwarf, |err| panic!("{}", err));
-            dbg!(&converter);
-
-            let mut buf = vec![];
-            converter.serialize(&mut buf, |_| ())?;
-            let symcache = crate::format::Format::parse(&buf)?;
-
-            println!("0x{:x}:", 0x10ef);
-            println!("{}", print_frames(symcache.lookup(0x10ef))?);
-            println!("0x{:x}:", 0x10f0);
-            println!("{}", print_frames(symcache.lookup(0x10f0))?);
-            println!("0x{:x}:", 0x10f2);
-            println!("{}", print_frames(symcache.lookup(0x10f2))?);
-            println!("0x{:x}:", 0x10f8);
-            println!("{}", print_frames(symcache.lookup(0x10f8))?);
-            println!("0x{:x}:", 0x10f9);
-            println!("{}", print_frames(symcache.lookup(0x10f9))?);
-            println!("0x{:x}:", 0x10ff);
-            println!("{}", print_frames(symcache.lookup(0x10ff))?);
-
-            Ok(())
-        })
-    }
 }

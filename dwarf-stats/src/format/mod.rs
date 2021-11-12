@@ -1,3 +1,6 @@
+//! The SymCache binary format.
+//!
+//!
 use std::{mem, ptr};
 
 mod error;
@@ -10,6 +13,10 @@ use raw::align_to_eight;
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// The serialized SymCache binary format.
+///
+/// This can be parsed from a binary buffer via [`Format::parse`], and lookups on it can be performed
+/// via the [`Format::lookup`] method.
 #[derive(Debug)]
 pub struct Format<'data> {
     strings: &'data [raw::String],
@@ -21,7 +28,7 @@ pub struct Format<'data> {
 }
 
 impl<'data> Format<'data> {
-    /// Parse the symcache binary format into a convenient type that allows safe access and allows
+    /// Parse the SymCache binary format into a convenient type that allows safe access and allows
     /// fast lookups.
     ///
     /// See the [raw module](raw) for an explanation of the binary format.
@@ -38,10 +45,15 @@ impl<'data> Format<'data> {
         }
         // SAFETY: we checked that the buffer is well aligned and large enough to fit a `raw::Header`.
         let header = unsafe { &*(buf.as_ptr() as *const raw::Header) };
-        // TODO: check preamble, endianness and version
-        // if header.version != FORMAT_VERSION {
-        //     return Err(Error::WrongVersion);
-        // }
+        if header.magic == raw::SYMCACHE_MAGIC_FLIPPED {
+            return Err(Error::WrongEndianness);
+        }
+        if header.magic != raw::SYMCACHE_MAGIC {
+            return Err(Error::WrongFormat);
+        }
+        if header.version != raw::SYMCACHE_VERSION {
+            return Err(Error::WrongVersion);
+        }
 
         let mut strings_size = mem::size_of::<raw::String>() * header.num_strings as usize;
         strings_size += align_to_eight(strings_size);
@@ -119,6 +131,7 @@ impl<'data> Format<'data> {
         })
     }
 
+    /// Resolves a string reference to the pointed-to `&str` data.
     fn get_string(&self, string_idx: u32) -> Result<Option<&str>> {
         if string_idx == u32::MAX {
             return Ok(None);

@@ -1,16 +1,16 @@
-//! A simple program to gather some stats about DWARF info, to answer the
-//! following questions:
-//!
-//! - What is the distribution / histogram / number of smallest
-//!   address ranges / line-mappings (looking at the line programs)
-//! - Get a histogram of the function ranges (how big are functions)
-//! - Histogram of line programs per function ?
-//! - Number of unique files/dirs and functions.
-//!
-//! Started out as a copy of:
-//! - https://github.com/gimli-rs/gimli/blob/master/examples/simple.rs
-//! - https://github.com/gimli-rs/gimli/blob/master/examples/simple_line.rs
+//! The SymCache format.
 
-mod converter;
+#![warn(missing_docs)]
+
+pub mod converter;
+pub mod error;
 pub mod format;
+
+pub use converter::Converter;
+pub use error::ErrorSink;
+pub use format::Format;
+
+// TODO: this is only used for comparisons/benchmarks, and should rather live inside a
+// testing-focused utility.
+#[allow(missing_docs)]
 pub mod lookups;

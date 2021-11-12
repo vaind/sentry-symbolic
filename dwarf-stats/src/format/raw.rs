@@ -1,7 +1,22 @@
+const SYMCACHE_MAGIC_BYTES: [u8; 4] = *b"SYMC";
+
+/// The magic file preamble to identify symcache files.
+///
+/// Serialized as ASCII "SYMC" on little-endian (x64) systems.
+pub const SYMCACHE_MAGIC: u32 = u32::from_be_bytes(SYMCACHE_MAGIC_BYTES);
+/// The byte-flipped magic, which indicates an endianness mismatch.
+pub const SYMCACHE_MAGIC_FLIPPED: u32 = SYMCACHE_MAGIC.swap_bytes();
+
+/// The latest version of the file format.
+pub const SYMCACHE_VERSION: u32 = 1_000;
+
 #[derive(Debug)]
 #[repr(C)]
 pub struct Header {
-    // TODO: preamble, version
+    /// The file magic representing the file format and endianness.
+    pub magic: u32,
+    /// The SymCache Format Version.
+    pub version: u32,
     /// Number of included [`String`]s.
     pub num_strings: u32,
     /// Number of included [`File`]s.
