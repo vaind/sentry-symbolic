@@ -31,8 +31,9 @@ impl Converter {
             let file_record = file?;
             let path_name_idx = self.insert_string(file_record.name.as_bytes());
             let (file_idx, _) = self.files.insert_full(File {
-                path_name_idx,
+                comp_dir_idx: None,
                 directory_idx: None,
+                path_name_idx,
             });
 
             file_map.insert(file_record.id, file_idx as u32);

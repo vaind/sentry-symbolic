@@ -274,11 +274,16 @@ where
             None => return Ok(u32::MAX),
         };
 
-        let directory_idx = if let Some(dir) = file.directory(&self.header) {
+        let (comp_dir_idx, directory_idx) = if let Some(dir) = file.directory(&self.header) {
             let directory = self.dwarf.attr_string(self.unit, dir)?;
-            Some(converter.insert_string(directory.to_string()?.as_bytes()))
+            let idx = converter.insert_string(directory.to_string()?.as_bytes());
+            if file.directory_index() == 0 {
+                (Some(idx), None)
+            } else {
+                (None, Some(idx))
+            }
         } else {
-            None
+            (None, None)
         };
 
         let path_name = self.dwarf.attr_string(self.unit, file.path_name())?;
@@ -287,6 +292,7 @@ where
         let file_idx = converter
             .files
             .insert_full(File {
+                comp_dir_idx,
                 directory_idx,
                 path_name_idx,
             })

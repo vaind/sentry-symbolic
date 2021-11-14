@@ -68,7 +68,7 @@ struct String {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct File {
-    // TODO: add comp_dir!
+    comp_dir_idx: Option<u32>,
     directory_idx: Option<u32>,
     path_name_idx: u32,
 }

@@ -50,7 +50,7 @@ impl Converter {
 
         for f in self.files {
             writer.write(&[raw::File {
-                comp_dir_idx: u32::MAX,
+                comp_dir_idx: f.comp_dir_idx.unwrap_or(u32::MAX),
                 directory_idx: f.directory_idx.unwrap_or(u32::MAX),
                 path_name_idx: f.path_name_idx,
             }])?;
