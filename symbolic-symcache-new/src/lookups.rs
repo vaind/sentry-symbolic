@@ -60,8 +60,10 @@ impl From<format::SourceLocation<'_>> for ResolvedFrame {
 impl<R: gimli::Reader> From<addr2line::Frame<'_, R>> for ResolvedFrame {
     fn from(frame: addr2line::Frame<'_, R>) -> Self {
         // TODO: return just the name with an empty file/line if there is no location
-        let (fun, loc) = (frame.function.unwrap(), frame.location.as_ref());
-        let function = fun.raw_name().unwrap().into();
+        let (fun, loc) = (frame.function, frame.location.as_ref());
+        let function = fun
+            .map(|f| f.raw_name().unwrap().to_string())
+            .unwrap_or_default();
         // strip leading `./` to be in-line with symcache output
         let file = loc
             .and_then(|loc| loc.file)
