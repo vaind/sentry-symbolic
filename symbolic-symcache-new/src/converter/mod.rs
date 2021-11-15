@@ -7,6 +7,8 @@ mod breakpad;
 mod dwarf;
 mod serialize;
 
+use symbolic_common::Language;
+
 use crate::format::raw;
 pub use serialize::*;
 
@@ -100,9 +102,15 @@ impl Converter {
     ///
     /// If the function was already present, it is not added again. The returned `u32`
     /// is the function's index in insertion order.
-    fn insert_function(&mut self, name: &str) -> u32 {
+    fn insert_function(&mut self, name: &str, entry_addr: u32, lang: Language) -> u32 {
         let name_idx = self.insert_string(name);
-        let (fun_idx, _) = self.functions.insert_full(raw::Function { name_idx });
+        let entry_addr = entry_addr;
+        let lang = lang as u8;
+        let (fun_idx, _) = self.functions.insert_full(raw::Function {
+            name_idx,
+            entry_addr,
+            lang,
+        });
         fun_idx as u32
     }
 }

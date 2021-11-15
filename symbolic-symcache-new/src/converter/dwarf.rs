@@ -9,6 +9,8 @@ use gimli::{
     LineProgramHeader, ReaderOffset, Unit, UnitOffset,
 };
 
+use symbolic_common::Language;
+
 use super::*;
 use crate::format::raw;
 use crate::ErrorSink;
@@ -41,7 +43,15 @@ impl Converter {
                     continue;
                 }
             };
-            if let Err(err) = self.process_dwarf_cu(&mut reusable_cache, dwarf, &unit, error_sink) {
+            let lang = find_cu_lang(&unit)
+                .unwrap_or_else(|e| {
+                    error_sink.raise_error(e);
+                    Some(0)
+                })
+                .unwrap_or_default() as u8;
+            if let Err(err) =
+                self.process_dwarf_cu(&mut reusable_cache, dwarf, &unit, lang, error_sink)
+            {
                 error_sink.raise_error(err);
             }
         }
@@ -53,6 +63,7 @@ impl Converter {
         reusable_cache: &mut ReusableCaches,
         dwarf: &Dwarf<R>,
         unit: &Unit<R>,
+        lang: u8,
         _error_sink: &mut E,
     ) -> Result<()> {
         // Construct LineRow Sequences.
@@ -65,6 +76,7 @@ impl Converter {
             self,
             dwarf,
             unit,
+            lang,
             line_program.header().clone(),
         )?;
         let sequences = parse_line_program(line_program)?;
@@ -192,6 +204,7 @@ impl ReusableCaches {
 struct PerCuCache<'dwarf, R: gimli::Reader> {
     dwarf: &'dwarf Dwarf<R>,
     unit: &'dwarf Unit<R>,
+    lang: u8,
     header: LineProgramHeader<R>,
     reusable_cache: &'dwarf mut ReusableCaches,
     comp_dir_idx: u32,
@@ -207,6 +220,7 @@ where
         converter: &mut Converter,
         dwarf: &'dwarf Dwarf<R>,
         unit: &'dwarf Unit<R>,
+        lang: u8,
         header: LineProgramHeader<R>,
     ) -> Result<Self> {
         reusable_cache.clear();
@@ -223,6 +237,7 @@ where
         Ok(Self {
             dwarf,
             unit,
+            lang,
             header,
             reusable_cache,
             comp_dir_idx,
@@ -265,10 +280,14 @@ where
             None => u32::MAX,
         };
 
+        let entry_addr = find_function_entry_addr(self.dwarf, self.unit, &die)?;
+
         let function_idx = converter
             .functions
             .insert_full(raw::Function {
                 name_idx: function_name_idx,
+                entry_addr: entry_addr.unwrap_or(u32::MAX as u64) as u32,
+                lang: self.lang,
             })
             .0 as u32;
 
@@ -385,6 +404,33 @@ fn find_function_name<R: gimli::Reader>(
         }
     }
     Ok(linkage_name.or(name))
+}
+
+fn find_function_entry_addr<R: gimli::Reader>(
+    dwarf: &Dwarf<R>,
+    unit: &Unit<R>,
+    die: &DebuggingInformationEntry<R>,
+) -> Result<Option<u64>> {
+    let first_range = dwarf.die_ranges(unit, die)?.next()?;
+    Ok(first_range.map(|r| r.begin))
+}
+
+fn find_cu_lang<R: gimli::Reader>(unit: &Unit<R>) -> Result<Option<u16>> {
+    let mut lang = None;
+    let mut cursor = unit.header.entries(&unit.abbreviations);
+    cursor.next_dfs()?;
+    let root = cursor.current().ok_or(gimli::Error::MissingUnitDie)?;
+    let mut attrs = root.attrs();
+
+    while let Some(attr) = attrs.next()? {
+        match attr.name() {
+            constants::DW_AT_language => {
+                lang = Some(attr.u16_value().unwrap());
+            }
+            _ => {}
+        }
+    }
+    Ok(lang)
 }
 
 /// A sequence of contiguous [`LineProgramRow`]s spanning the address ranges `start` to `end`.

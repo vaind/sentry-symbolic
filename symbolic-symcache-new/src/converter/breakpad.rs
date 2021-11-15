@@ -36,10 +36,26 @@ impl Converter {
         // gather functions
         for function in breakpad.func_records() {
             let func_record = function?;
-            let func_idx = self.insert_function(func_record.name);
+
+            // there's a bit of a dance here, we need to look at the first line
+            // record before we insert the function, otherwise we don't know the
+            // `entry_addr`
+            let mut func_idx = None;
+            let mut entry_addr = None;
 
             for line in func_record.lines() {
                 let line_record = line?;
+                let address = line_record.address as u32;
+
+                let entry_addr = *entry_addr.get_or_insert(address);
+
+                let func_idx = *func_idx.get_or_insert_with(|| {
+                    // NOTE: Calling insert_function in this loop means that a function
+                    // won't be inserted if it has no line records. I think this should be fine,
+                    // no address lookup could ever hit that function even if we inserted it.
+                    self.insert_function(func_record.name, entry_addr, Language::Unknown)
+                });
+
                 let source_location = raw::SourceLocation {
                     file_idx: file_map[&line_record.file_id],
                     line: line_record.line as u32,
@@ -47,8 +63,7 @@ impl Converter {
                     inlined_into_idx: u32::MAX,
                 };
 
-                self.ranges
-                    .insert(line_record.address as u32, source_location);
+                self.ranges.insert(address, source_location);
             }
         }
         Ok(())
