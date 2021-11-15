@@ -80,6 +80,13 @@ impl<'data> Format<'data> {
             + header.string_bytes as usize;
 
         if buf.len() != expected_buf_size || source_locations_size < ranges_size {
+            dbg!(
+                header,
+                buf.len(),
+                expected_buf_size,
+                source_locations_size,
+                ranges_size
+            );
             return Err(Error::BadFormatLength);
         }
 

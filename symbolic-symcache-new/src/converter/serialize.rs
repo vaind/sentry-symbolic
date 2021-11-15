@@ -41,10 +41,7 @@ impl Converter {
         writer.align()?;
 
         for (_, s) in self.strings {
-            writer.write(&[raw::String {
-                string_offset: s.string_offset,
-                string_len: s.string_len,
-            }])?;
+            writer.write(&[s])?;
         }
         writer.align()?;
 
@@ -62,7 +59,7 @@ impl Converter {
             writer.write(&[s])?;
         }
         for s in self.ranges.values() {
-            writer.write(&[s])?;
+            writer.write(std::slice::from_ref(s))?;
         }
         writer.align()?;
 
