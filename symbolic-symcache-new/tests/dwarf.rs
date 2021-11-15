@@ -4,7 +4,7 @@ use std::{borrow, fs};
 
 use object::{Object, ObjectSection};
 
-use dwarf_stats::*;
+use symbolic_symcache_new::*;
 
 #[test]
 fn works_on_simple() {

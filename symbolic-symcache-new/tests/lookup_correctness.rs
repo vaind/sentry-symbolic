@@ -1,6 +1,6 @@
 use std::fs;
 
-use dwarf_stats::{format, lookups};
+use symbolic_symcache_new::{format, lookups};
 
 #[test]
 fn test_simple() {

@@ -1,5 +1,5 @@
 [package]
-name = "dwarf-stats"
+name = "symbolic-symcache-new"
 version = "0.1.0"
 edition = "2018"
 
@@ -30,7 +30,7 @@ name = "symcache_comparison_external"
 harness = false
 
 [lib]
-name = "dwarf_stats"
+name = "symbolic_symcache_new"
 path = "src/lib.rs"
 
 

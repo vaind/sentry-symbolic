@@ -6,7 +6,7 @@ use symbolic_debuginfo::breakpad::BreakpadObject;
 mod dwarf;
 use dwarf::{resolve_lookup, ResolvedFrame};
 
-use dwarf_stats::*;
+use symbolic_symcache_new::*;
 
 #[test]
 fn test_macos() {

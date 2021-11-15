@@ -5,7 +5,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
 
-use dwarf_stats::{format, lookups};
+use symbolic_symcache_new::{format, lookups};
 
 fn random_addresses(range: &Range<u64>, rng: &mut SmallRng) -> [u64; 1000] {
     let mut addresses = [0; 1000];

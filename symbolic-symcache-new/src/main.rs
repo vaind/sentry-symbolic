@@ -11,7 +11,7 @@ use humansize::{file_size_opts, FileSize};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
 
-pub use dwarf_stats::*;
+pub use symbolic_symcache_new::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     for path in env::args().skip(1) {

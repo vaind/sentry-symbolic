@@ -5,7 +5,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
 
-use dwarf_stats::{format, lookups};
+use symbolic_symcache_new::{format, lookups};
 
 const DEBUG_PATH: &str = "testcases/libc6.debug";
 
