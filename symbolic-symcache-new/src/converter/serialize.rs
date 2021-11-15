@@ -50,8 +50,8 @@ impl Converter {
 
         for f in self.files {
             writer.write(&[raw::File {
-                comp_dir_idx: f.comp_dir_idx.unwrap_or(u32::MAX),
-                directory_idx: f.directory_idx.unwrap_or(u32::MAX),
+                comp_dir_idx: f.comp_dir_idx,
+                directory_idx: f.directory_idx,
                 path_name_idx: f.path_name_idx,
             }])?;
         }
@@ -69,7 +69,7 @@ impl Converter {
                 file_idx: s.file_idx,
                 line: s.line,
                 function_idx: s.function_idx,
-                inlined_into_idx: s.inlined_into_idx.unwrap_or(u32::MAX),
+                inlined_into_idx: s.inlined_into_idx,
             }])?;
         }
         for s in self.ranges.values() {
@@ -77,7 +77,7 @@ impl Converter {
                 file_idx: s.file_idx,
                 line: s.line,
                 function_idx: s.function_idx,
-                inlined_into_idx: s.inlined_into_idx.unwrap_or(u32::MAX),
+                inlined_into_idx: s.inlined_into_idx,
             }])?;
         }
         writer.align()?;

@@ -10,6 +10,7 @@ use gimli::{
 };
 
 use super::*;
+use crate::format::raw;
 use crate::ErrorSink;
 
 type Result<T, E = gimli::Error> = std::result::Result<T, E>;
@@ -71,11 +72,11 @@ impl Converter {
 
                 line_program_ranges.insert(
                     row.address as u32,
-                    SourceLocation {
+                    raw::SourceLocation {
                         file_idx,
                         line: row.line,
                         function_idx: u32::MAX,
-                        inlined_into_idx: None,
+                        inlined_into_idx: u32::MAX,
                     },
                 );
             }
@@ -117,7 +118,7 @@ impl Converter {
                         caller_source_location.line = caller_line;
 
                         callee_source_location.inlined_into_idx =
-                            Some(self.insert_source_location(caller_source_location));
+                            self.insert_source_location(caller_source_location);
                         callee_source_location.function_idx = function_idx;
                     }
                 } else {
@@ -152,9 +153,9 @@ impl Converter {
 
 /// Returns an iterator of [`SourceLocation`]s that match the given [`gimli::Range`].
 fn sub_ranges<'a>(
-    ranges: &'a mut BTreeMap<u32, SourceLocation>,
+    ranges: &'a mut BTreeMap<u32, raw::SourceLocation>,
     range: &gimli::Range,
-) -> impl Iterator<Item = &'a mut SourceLocation> {
+) -> impl Iterator<Item = &'a mut raw::SourceLocation> {
     let first_after = ranges.range(range.end as u32..).next();
     let upper_bound = if let Some((first_after_start, _)) = first_after {
         Bound::Excluded(*first_after_start)
@@ -251,7 +252,7 @@ where
 
         let function_idx = converter
             .functions
-            .insert_full(Function {
+            .insert_full(raw::Function {
                 name_idx: function_name_idx,
             })
             .0 as u32;
@@ -291,9 +292,9 @@ where
 
         let file_idx = converter
             .files
-            .insert_full(File {
-                comp_dir_idx,
-                directory_idx,
+            .insert_full(raw::File {
+                comp_dir_idx: comp_dir_idx.unwrap_or(u32::MAX),
+                directory_idx: directory_idx.unwrap_or(u32::MAX),
                 path_name_idx,
             })
             .0 as u32;

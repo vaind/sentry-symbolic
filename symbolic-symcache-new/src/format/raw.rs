@@ -31,14 +31,16 @@ pub struct Header {
     pub string_bytes: u32,
 }
 
-#[derive(Debug)]
+/// A reference to a function in the symcache.
+#[derive(Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct Function {
     /// The functions name (reference to a [`String`]).
     pub name_idx: u32,
 }
 
-#[derive(Debug)]
+/// A reference to a file in the symcache.
+#[derive(Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct File {
     /// The optional compilation directory prefix (reference to a [`String`]).
@@ -49,7 +51,14 @@ pub struct File {
     pub path_name_idx: u32,
 }
 
-#[derive(Debug)]
+/// A location in a source file, comprising a file, a line, a function, and
+/// the index of the source location this was inlined into, if any.
+///
+/// Note that each time a function is inlined, as well as the non-inlined
+/// version of the function, is represented by a distinct `SourceLocation`.
+/// These `SourceLocation`s will all point to the same file, line, and function,
+/// but have different inline information.
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct SourceLocation {
     /// The optional source file (reference to a [`File`]).
@@ -63,7 +72,8 @@ pub struct SourceLocation {
     pub inlined_into_idx: u32,
 }
 
-#[derive(Debug)]
+/// A reference to a string in the symcache.
+#[derive(Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct String {
     /// The offset into the `string_bytes`.
@@ -72,7 +82,11 @@ pub struct String {
     pub string_len: u32,
 }
 
-#[derive(Debug)]
+/// A representation of a code range in the symcache.
+///
+/// We only save the start address the end is implicitly given
+/// by the next range's start.
+#[derive(Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct Range(pub u32);
 

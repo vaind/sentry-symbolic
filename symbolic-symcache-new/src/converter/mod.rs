@@ -7,6 +7,7 @@ mod breakpad;
 mod dwarf;
 mod serialize;
 
+use crate::format::raw;
 pub use serialize::*;
 
 /// The SymCache Converter.
@@ -15,12 +16,23 @@ pub use serialize::*;
 /// then be serialized to disk via its [`Converter::serialize`] method.
 #[derive(Debug, Default)]
 pub struct Converter {
+    /// The concatenation of all strings that have been added to this `Converter`.
     string_bytes: Vec<u8>,
-    strings: IndexMap<Vec<u8>, String>,
-    files: IndexSet<File>,
-    functions: IndexSet<Function>,
-    source_locations: IndexSet<SourceLocation>,
-    ranges: BTreeMap<u32, SourceLocation>,
+    /// A map from strings that have been added to this `Converter` to [`StringRef`]s, i.e.,
+    /// indices into the `string_bytes` vector.
+    strings: IndexMap<String, raw::String>,
+    /// The set of all (references to) files that have been added to this `Converter`.
+    files: IndexSet<raw::File>,
+    /// The set of all (references to) functions that have been added to this `Converter`.
+    functions: IndexSet<raw::Function>,
+    /// The set of all [`SourceLocation`]s that have been added to this `Converter` and that
+    /// aren't directly associated with a code range.
+    source_locations: IndexSet<raw::SourceLocation>,
+    /// A map from code ranges to the [`SourceLocation`]s they correspond to.
+    ///
+    /// Only the starting address of a range is saved, the end address is given implicitly
+    /// by the start address of the next range.
+    ranges: BTreeMap<u32, raw::SourceLocation>,
 }
 
 impl Converter {
@@ -32,6 +44,10 @@ impl Converter {
     //         // TODO: transform all the strings, for example to apply BCSymbolMaps.
     //     }
 
+    /// Insert a string into this converter.
+    ///
+    /// If the string was already present, it is not added again. The returned `u32`
+    /// is the string's index in insertion order.
     fn insert_string(&mut self, s: &str) -> u32 {
         if let Some(existing_idx) = self.strings.get_index_of(s) {
             return existing_idx as u32;
@@ -41,7 +57,7 @@ impl Converter {
         self.string_bytes.extend(s.bytes());
         let (string_idx, _) = self.strings.insert_full(
             s.to_owned(),
-            String {
+            raw::String {
                 string_offset,
                 string_len,
             },
@@ -49,38 +65,44 @@ impl Converter {
         string_idx as u32
     }
 
-    fn insert_source_location(&mut self, source_location: SourceLocation) -> u32 {
+    /// Insert a [`SourceLocation`] into this converter.
+    ///
+    /// If the `SourceLocation` was already present, it is not added again. The returned `u32`
+    /// is the `SourceLocation`'s index in insertion order.
+    fn insert_source_location(&mut self, source_location: raw::SourceLocation) -> u32 {
         self.source_locations.insert_full(source_location).0 as u32
     }
-}
 
-// TODO: not sure if we should rather use "fully-typed" structs here that have `Option`s and `usize`s.
-// Or rather completely switch to using `raw` types (with `u32::MAX` markers and `u32` indices).
-// Currently this is a mix of both, with a bunch of type casts and `u32::MAX` checks in between, so
-// essentially the worst of both worlds, lol.
+    /// Insert a file into this converter.
+    ///
+    /// If the file was already present, it is not added again. The returned `u32`
+    /// is the file's index in insertion order.
+    fn insert_file(
+        &mut self,
+        path_name: &str,
+        directory: Option<&str>,
+        comp_dir: Option<&str>,
+    ) -> u32 {
+        let path_name_idx = self.insert_string(path_name);
+        let directory_idx = directory.map_or(u32::MAX, |d| self.insert_string(d));
+        let comp_dir_idx = comp_dir.map_or(u32::MAX, |cd| self.insert_string(cd));
 
-#[derive(Debug)]
-struct String {
-    string_offset: u32,
-    string_len: u32,
-}
+        let (file_idx, _) = self.files.insert_full(raw::File {
+            path_name_idx,
+            directory_idx,
+            comp_dir_idx,
+        });
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct File {
-    comp_dir_idx: Option<u32>,
-    directory_idx: Option<u32>,
-    path_name_idx: u32,
-}
+        file_idx as u32
+    }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct Function {
-    name_idx: u32,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-struct SourceLocation {
-    file_idx: u32,
-    line: u32,
-    function_idx: u32,
-    inlined_into_idx: Option<u32>,
+    /// Insert a function into this converter.
+    ///
+    /// If the function was already present, it is not added again. The returned `u32`
+    /// is the function's index in insertion order.
+    fn insert_function(&mut self, name: &str) -> u32 {
+        let name_idx = self.insert_string(name);
+        let (fun_idx, _) = self.functions.insert_full(raw::Function { name_idx });
+        fun_idx as u32
+    }
 }
