@@ -20,6 +20,7 @@ thiserror = "1.0.30"
 
 [dev-dependencies]
 criterion = { version = "0.3.5", features = ["html_reports"] }
+symbolic-testutils = { path = "../symbolic-testutils" }
 
 [[bench]]
 name = "symcache_comparison"

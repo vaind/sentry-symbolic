@@ -2,11 +2,16 @@ use std::vec;
 use std::{borrow, ops::Range};
 
 use object::{Object, ObjectSection};
+use symbolic_debuginfo::breakpad::BreakpadObject;
 use symbolic_symcache::SymCache;
 
 use crate::converter::Converter;
+use crate::format;
 
 const SHF_EXECINSTR: u64 = 0x4;
+
+type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
+type Dwarf<'a> = gimli::Dwarf<gimli::EndianSlice<'a, gimli::RunTimeEndian>>;
 
 pub fn get_executable_range(object: &object::File) -> Range<u64> {
     let mut smallest_addr = u64::MAX;
@@ -23,20 +28,67 @@ pub fn get_executable_range(object: &object::File) -> Range<u64> {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct LookupResult {
-    pub frames: Vec<LookupFrame>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct LookupFrame {
-    pub name: String,
+pub struct ResolvedFrame {
+    pub function: String,
     pub file: String,
     pub line: u32,
 }
 
-pub fn create_addr2line(
-    data: &[u8],
-) -> Result<addr2line::ObjectContext, Box<dyn std::error::Error>> {
+impl From<format::SourceLocation<'_>> for ResolvedFrame {
+    fn from(source_location: format::SourceLocation<'_>) -> Self {
+        let function = source_location
+            .function()
+            .unwrap()
+            .and_then(|function| function.name().unwrap())
+            .unwrap_or("")
+            .to_owned();
+        let file = source_location
+            .file()
+            .unwrap()
+            .and_then(|file| file.full_path().unwrap())
+            .unwrap_or_else(String::new);
+        let line = source_location.line();
+
+        Self {
+            function,
+            file,
+            line,
+        }
+    }
+}
+
+impl<R: gimli::Reader> From<addr2line::Frame<'_, R>> for ResolvedFrame {
+    fn from(frame: addr2line::Frame<'_, R>) -> Self {
+        // TODO: return just the name with an empty file/line if there is no location
+        let (fun, loc) = (frame.function.unwrap(), frame.location.as_ref());
+        let function = fun.raw_name().unwrap().into();
+        // strip leading `./` to be in-line with symcache output
+        let file = loc
+            .and_then(|loc| loc.file)
+            .map(|f| f.strip_prefix("./").unwrap_or(f))
+            .unwrap_or_default()
+            .to_string();
+        let line = loc.and_then(|loc| loc.line).unwrap_or_default();
+        Self {
+            function,
+            file,
+            line,
+        }
+    }
+}
+
+pub fn resolve_lookup(symcache: &format::Format<'_>, addr: u64) -> Vec<ResolvedFrame> {
+    let mut lookup = symcache.lookup(addr);
+    let mut resolved = vec![];
+
+    while let Some(frame) = lookup.next().unwrap() {
+        resolved.push(ResolvedFrame::from(frame));
+    }
+
+    resolved
+}
+
+pub fn create_addr2line(data: &[u8]) -> Result<addr2line::ObjectContext> {
     let object = object::File::parse(data)?;
     Ok(addr2line::Context::new(&object)?)
 }
@@ -44,31 +96,19 @@ pub fn create_addr2line(
 pub fn lookup_addr2line<R: gimli::Reader>(
     ctx: &addr2line::Context<R>,
     addr: u64,
-) -> Result<LookupResult, gimli::Error> {
+) -> Result<Vec<ResolvedFrame>> {
     let mut frames = ctx.find_frames(addr)?;
 
     let mut result = vec![];
 
     while let Some(frame) = frames.next()? {
-        // TODO: return just the name with an empty file/line if there is no location
-        if let (Some(fun), loc) = (frame.function, frame.location.as_ref()) {
-            let name = fun.raw_name()?.into();
-            // strip leading `./` to be in-line with symcache output
-            let file = loc
-                .and_then(|loc| loc.file)
-                .map(|f| f.strip_prefix("./").unwrap_or(f))
-                .unwrap_or_default()
-                .to_string();
-            let line = loc.and_then(|loc| loc.line).unwrap_or_default();
-
-            result.push(LookupFrame { name, file, line });
-        }
+        result.push(frame.into());
     }
 
-    Ok(LookupResult { frames: result })
+    Ok(result)
 }
 
-pub fn create_symcache(data: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn create_symcache(data: &[u8]) -> Result<Vec<u8>> {
     let object = symbolic_debuginfo::elf::ElfObject::parse(data)?;
     let mut symcache_buf = vec![];
     symbolic_symcache::SymCacheWriter::write_object(
@@ -79,10 +119,7 @@ pub fn create_symcache(data: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error
     Ok(symcache_buf)
 }
 
-pub fn lookup_symcache(
-    symcache: &SymCache,
-    addr: u64,
-) -> Result<LookupResult, Box<dyn std::error::Error>> {
+pub fn lookup_symcache(symcache: &SymCache, addr: u64) -> Result<Vec<ResolvedFrame>> {
     let frames = symcache.lookup(addr)?;
 
     let mut result = vec![];
@@ -90,17 +127,21 @@ pub fn lookup_symcache(
     for frame in frames {
         let frame = frame?;
 
-        let name = frame.function_name().into_string();
+        let function = frame.function_name().into_string();
         let file = frame.abs_path();
         let line = frame.line();
 
-        result.push(LookupFrame { name, file, line });
+        result.push(ResolvedFrame {
+            function,
+            file,
+            line,
+        });
     }
 
-    Ok(LookupResult { frames: result })
+    Ok(result)
 }
 
-pub fn create_new_symcache(data: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+fn with_loaded_dwarf<T, F: FnOnce(&Dwarf) -> Result<T>>(data: &[u8], f: F) -> Result<T> {
     let object = object::File::parse(data)?;
 
     let endian = if object.is_little_endian() {
@@ -131,11 +172,28 @@ pub fn create_new_symcache(data: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::E
     // Create `EndianSlice`s for all of the sections.
     let dwarf = dwarf_cow.borrow(&borrow_section);
 
-    let mut converter = Converter::new();
-    converter.process_dwarf(&dwarf, |_| ());
-    let mut symcache_buf = vec![];
+    f(&dwarf)
+}
 
-    converter.serialize(&mut symcache_buf, |_| ())?;
+pub fn create_new_symcache_dwarf(data: &[u8]) -> Result<Vec<u8>> {
+    with_loaded_dwarf(data, |dwarf| {
+        let mut converter = Converter::new();
+        converter.process_dwarf(dwarf, |err| panic!("{}", err));
+
+        let mut buf = vec![];
+        converter.serialize(&mut buf, |err| panic!("{}", err))?;
+
+        Ok(buf)
+    })
+}
+
+pub fn create_new_symcache_breakpad(data: &[u8]) -> Result<Vec<u8>> {
+    let breakpad = BreakpadObject::parse(&data)?;
+
+    let mut converter = Converter::default();
+    converter.process_breakpad(&breakpad, |_| {});
+    let mut symcache_buf = Vec::new();
+    converter.serialize(&mut symcache_buf, |_| {})?;
 
     Ok(symcache_buf)
 }
@@ -143,7 +201,7 @@ pub fn create_new_symcache(data: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::E
 pub fn lookup_new_symcache(
     format: &crate::format::Format,
     addr: u64,
-) -> Result<LookupResult, Box<dyn std::error::Error>> {
+) -> Result<Vec<ResolvedFrame>, Box<dyn std::error::Error>> {
     let mut frames = format.lookup(addr);
 
     let mut result = vec![];
@@ -153,7 +211,7 @@ pub fn lookup_new_symcache(
         let file = source_location.file()?;
         let line = source_location.line();
 
-        let name = if let Some(function) = function {
+        let function = if let Some(function) = function {
             function.name()?.unwrap_or_default().to_owned()
         } else {
             String::new()
@@ -164,8 +222,12 @@ pub fn lookup_new_symcache(
             String::new()
         };
 
-        result.push(LookupFrame { name, file, line });
+        result.push(ResolvedFrame {
+            function,
+            file,
+            line,
+        });
     }
 
-    Ok(LookupResult { frames: result })
+    Ok(result)
 }
