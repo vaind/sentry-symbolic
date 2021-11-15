@@ -32,14 +32,13 @@ impl Converter {
     //         // TODO: transform all the strings, for example to apply BCSymbolMaps.
     //     }
 
-    // TODO: should we take `&[u8]` or rather `&str`?
-    fn insert_string(&mut self, s: &[u8]) -> u32 {
+    fn insert_string(&mut self, s: &str) -> u32 {
         if let Some(existing_idx) = self.strings.get_index_of(s) {
             return existing_idx as u32;
         }
         let string_offset = self.string_bytes.len() as u32;
         let string_len = s.len() as u32;
-        self.string_bytes.extend(s);
+        self.string_bytes.extend(s.bytes());
         let (string_idx, _) = self.strings.insert_full(
             s.to_owned(),
             String {

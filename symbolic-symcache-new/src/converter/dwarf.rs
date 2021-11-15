@@ -221,7 +221,7 @@ where
     fn insert_string(&self, converter: &mut Converter, attr: AttributeValue<R>) -> Result<u32> {
         let attr = self.dwarf.attr_string(self.unit, attr)?;
         let s = attr.to_string()?;
-        Ok(converter.insert_string(s.as_bytes()))
+        Ok(converter.insert_string(&s))
     }
 
     /// Inserts a function identified by the [`UnitOffset`] into the global function table.
@@ -244,7 +244,7 @@ where
         let function_name_idx = match find_function_name(&die)? {
             Some(name) => {
                 let attr = self.dwarf.attr_string(self.unit, name)?;
-                converter.insert_string(attr.to_string()?.as_bytes())
+                converter.insert_string(&attr.to_string()?)
             }
             None => u32::MAX,
         };
@@ -276,7 +276,7 @@ where
 
         let (comp_dir_idx, directory_idx) = if let Some(dir) = file.directory(&self.header) {
             let directory = self.dwarf.attr_string(self.unit, dir)?;
-            let idx = converter.insert_string(directory.to_string()?.as_bytes());
+            let idx = converter.insert_string(&directory.to_string()?);
             if file.directory_index() == 0 {
                 (Some(idx), None)
             } else {
@@ -287,7 +287,7 @@ where
         };
 
         let path_name = self.dwarf.attr_string(self.unit, file.path_name())?;
-        let path_name_idx = converter.insert_string(path_name.to_string()?.as_bytes());
+        let path_name_idx = converter.insert_string(&path_name.to_string()?);
 
         let file_idx = converter
             .files

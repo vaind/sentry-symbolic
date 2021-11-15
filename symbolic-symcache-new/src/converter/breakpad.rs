@@ -29,7 +29,7 @@ impl Converter {
         // gather files
         for file in breakpad.file_records() {
             let file_record = file?;
-            let path_name_idx = self.insert_string(file_record.name.as_bytes());
+            let path_name_idx = self.insert_string(file_record.name);
             let (file_idx, _) = self.files.insert_full(File {
                 comp_dir_idx: None,
                 directory_idx: None,
@@ -42,7 +42,7 @@ impl Converter {
         // gather functions
         for function in breakpad.func_records() {
             let func_record = function?;
-            let name_idx = self.insert_string(func_record.name.as_bytes());
+            let name_idx = self.insert_string(func_record.name);
             let (func_idx, _) = self.functions.insert_full(Function { name_idx });
 
             for line in func_record.lines() {
