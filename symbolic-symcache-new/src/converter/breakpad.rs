@@ -30,7 +30,7 @@ impl Converter {
         for file in breakpad.file_records() {
             let file_record = file?;
             let file_idx = self.insert_file(file_record.name, None, None);
-            file_map.insert(file_record.id, file_idx as u32);
+            file_map.insert(file_record.id, file_idx);
         }
 
         // gather functions
@@ -43,7 +43,7 @@ impl Converter {
                 let source_location = raw::SourceLocation {
                     file_idx: file_map[&line_record.file_id],
                     line: line_record.line as u32,
-                    function_idx: func_idx as u32,
+                    function_idx: func_idx,
                     inlined_into_idx: u32::MAX,
                 };
 

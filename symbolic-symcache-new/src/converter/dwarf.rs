@@ -60,8 +60,13 @@ impl Converter {
             Some(lp) => lp,
             None => return Ok(()),
         };
-        let mut cu_cache =
-            PerCuCache::new(reusable_cache, dwarf, unit, line_program.header().clone());
+        let mut cu_cache = PerCuCache::new(
+            reusable_cache,
+            self,
+            dwarf,
+            unit,
+            line_program.header().clone(),
+        )?;
         let sequences = parse_line_program(line_program)?;
 
         // TODO: figure out if we actually need to keep "sequences" separate?
@@ -189,6 +194,7 @@ struct PerCuCache<'dwarf, R: gimli::Reader> {
     unit: &'dwarf Unit<R>,
     header: LineProgramHeader<R>,
     reusable_cache: &'dwarf mut ReusableCaches,
+    comp_dir_idx: u32,
 }
 
 impl<'dwarf, R> PerCuCache<'dwarf, R>
@@ -198,20 +204,29 @@ where
 {
     fn new(
         reusable_cache: &'dwarf mut ReusableCaches,
+        converter: &mut Converter,
         dwarf: &'dwarf Dwarf<R>,
         unit: &'dwarf Unit<R>,
         header: LineProgramHeader<R>,
-    ) -> Self {
+    ) -> Result<Self> {
         reusable_cache.clear();
         reusable_cache
             .file_mapping
             .reserve(header.file_names().len());
-        Self {
+
+        let comp_dir_idx = if let Some(ref comp_dir) = unit.comp_dir {
+            converter.insert_string(&comp_dir.to_string()?)
+        } else {
+            u32::MAX
+        };
+
+        Ok(Self {
             dwarf,
             unit,
             header,
             reusable_cache,
-        }
+            comp_dir_idx,
+        })
     }
 
     /// Insert a string identified by the [`AttributeValue`] into the global string table.
@@ -275,16 +290,17 @@ where
             None => return Ok(u32::MAX),
         };
 
-        let (comp_dir_idx, directory_idx) = if let Some(dir) = file.directory(&self.header) {
-            let directory = self.dwarf.attr_string(self.unit, dir)?;
-            let idx = converter.insert_string(&directory.to_string()?);
-            if file.directory_index() == 0 {
-                (Some(idx), None)
+        // The `directory_index == 0` is defined to be the `comp_dir`.
+        let directory_idx = if file.directory_index() != 0 {
+            if let Some(dir) = file.directory(&self.header) {
+                let directory = self.dwarf.attr_string(self.unit, dir)?;
+                let idx = converter.insert_string(&directory.to_string()?);
+                idx
             } else {
-                (None, Some(idx))
+                u32::MAX
             }
         } else {
-            (None, None)
+            u32::MAX
         };
 
         let path_name = self.dwarf.attr_string(self.unit, file.path_name())?;
@@ -293,8 +309,8 @@ where
         let file_idx = converter
             .files
             .insert_full(raw::File {
-                comp_dir_idx: comp_dir_idx.unwrap_or(u32::MAX),
-                directory_idx: directory_idx.unwrap_or(u32::MAX),
+                comp_dir_idx: self.comp_dir_idx,
+                directory_idx,
                 path_name_idx,
             })
             .0 as u32;

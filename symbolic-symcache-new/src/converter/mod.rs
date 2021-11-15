@@ -18,17 +18,17 @@ pub use serialize::*;
 pub struct Converter {
     /// The concatenation of all strings that have been added to this `Converter`.
     string_bytes: Vec<u8>,
-    /// A map from strings that have been added to this `Converter` to [`StringRef`]s, i.e.,
+    /// A map from [`String`]s that have been added to this `Converter` to [`StringRef`]s, i.e.,
     /// indices into the `string_bytes` vector.
     strings: IndexMap<String, raw::String>,
-    /// The set of all (references to) files that have been added to this `Converter`.
+    /// The set of all [`raw::File`]s that have been added to this `Converter`.
     files: IndexSet<raw::File>,
-    /// The set of all (references to) functions that have been added to this `Converter`.
+    /// The set of all [`raw::Function`]s that have been added to this `Converter`.
     functions: IndexSet<raw::Function>,
-    /// The set of all [`SourceLocation`]s that have been added to this `Converter` and that
+    /// The set of all [`raw::SourceLocation`]s that have been added to this `Converter` and that
     /// aren't directly associated with a code range.
     source_locations: IndexSet<raw::SourceLocation>,
-    /// A map from code ranges to the [`SourceLocation`]s they correspond to.
+    /// A map from code ranges to the [`raw::SourceLocation`]s they correspond to.
     ///
     /// Only the starting address of a range is saved, the end address is given implicitly
     /// by the start address of the next range.
@@ -65,7 +65,7 @@ impl Converter {
         string_idx as u32
     }
 
-    /// Insert a [`SourceLocation`] into this converter.
+    /// Insert a [`raw::SourceLocation`] into this converter.
     ///
     /// If the `SourceLocation` was already present, it is not added again. The returned `u32`
     /// is the `SourceLocation`'s index in insertion order.

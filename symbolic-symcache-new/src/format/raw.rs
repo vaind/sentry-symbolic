@@ -31,7 +31,7 @@ pub struct Header {
     pub string_bytes: u32,
 }
 
-/// A reference to a function in the symcache.
+/// Serialized Function metadata in the SymCache.
 #[derive(Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct Function {
@@ -39,7 +39,7 @@ pub struct Function {
     pub name_idx: u32,
 }
 
-/// A reference to a file in the symcache.
+/// Serialized File in the SymCache.
 #[derive(Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct File {
@@ -72,7 +72,7 @@ pub struct SourceLocation {
     pub inlined_into_idx: u32,
 }
 
-/// A reference to a string in the symcache.
+/// Serialized String in the SymCache.
 #[derive(Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct String {
@@ -82,9 +82,9 @@ pub struct String {
     pub string_len: u32,
 }
 
-/// A representation of a code range in the symcache.
+/// A representation of a code range in the SymCache.
 ///
-/// We only save the start address the end is implicitly given
+/// We only save the start address, the end is implicitly given
 /// by the next range's start.
 #[derive(Debug, Hash, PartialEq, Eq)]
 #[repr(C)]

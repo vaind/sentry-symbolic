@@ -49,36 +49,20 @@ impl Converter {
         writer.align()?;
 
         for f in self.files {
-            writer.write(&[raw::File {
-                comp_dir_idx: f.comp_dir_idx,
-                directory_idx: f.directory_idx,
-                path_name_idx: f.path_name_idx,
-            }])?;
+            writer.write(&[f])?;
         }
         writer.align()?;
 
         for f in self.functions {
-            writer.write(&[raw::Function {
-                name_idx: f.name_idx,
-            }])?;
+            writer.write(&[f])?;
         }
         writer.align()?;
 
         for s in self.source_locations {
-            writer.write(&[raw::SourceLocation {
-                file_idx: s.file_idx,
-                line: s.line,
-                function_idx: s.function_idx,
-                inlined_into_idx: s.inlined_into_idx,
-            }])?;
+            writer.write(&[s])?;
         }
         for s in self.ranges.values() {
-            writer.write(&[raw::SourceLocation {
-                file_idx: s.file_idx,
-                line: s.line,
-                function_idx: s.function_idx,
-                inlined_into_idx: s.inlined_into_idx,
-            }])?;
+            writer.write(&[s])?;
         }
         writer.align()?;
 
