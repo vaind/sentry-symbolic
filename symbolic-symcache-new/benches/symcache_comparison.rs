@@ -32,7 +32,7 @@ pub fn creation(c: &mut Criterion) {
         });
         group.bench_function(BenchmarkId::new("new symcache", path), |b| {
             b.iter(|| {
-                let symcache_buf = lookups::create_new_symcache(&mmap).unwrap();
+                let symcache_buf = lookups::create_new_symcache_dwarf(&mmap).unwrap();
                 format::Format::parse(&symcache_buf).unwrap();
             })
         });
@@ -55,7 +55,7 @@ pub fn lookup(c: &mut Criterion) {
         let addr2line_ctx = lookups::create_addr2line(&mmap).unwrap();
         let symcache_buf_old = lookups::create_symcache(&mmap).unwrap();
         let symcache_old = symbolic_symcache::SymCache::parse(&symcache_buf_old).unwrap();
-        let symcache_buf_new = lookups::create_new_symcache(&mmap).unwrap();
+        let symcache_buf_new = lookups::create_new_symcache_dwarf(&mmap).unwrap();
         let symcache_new = format::Format::parse(&symcache_buf_new).unwrap();
 
         group.bench_function(BenchmarkId::new("addr2line", path), |b| {
