@@ -1,12 +1,10 @@
-use std::path::Path;
-use std::string::String;
-use std::{borrow, fs};
+use std::fs;
 
 use symbolic_debuginfo::breakpad::BreakpadObject;
 
 // TODO: do this properly
 mod dwarf;
-use dwarf::resolve_lookup;
+use dwarf::{resolve_lookup, ResolvedFrame};
 
 use dwarf_stats::*;
 
@@ -23,5 +21,12 @@ fn test_macos() {
     let symcache = Format::parse(&symcache_buf).unwrap();
 
     let lookup_result = resolve_lookup(&symcache, 0x1a2a);
-    println!("{:?}", lookup_result);
+    assert_eq!(
+        lookup_result[0],
+        ResolvedFrame {
+            function: "google_breakpad::MinidumpFileWriter::Copy(unsigned int, void const*, long)".to_string(),
+            file: "/Users/travis/build/getsentry/breakpad-tools/macos/../deps/breakpad/src/client/minidump_file_writer.cc".to_string(),
+            line: 312
+        }
+    );
 }

@@ -50,9 +50,9 @@ pub fn resolve_lookup(symcache: &Format<'_>, addr: u64) -> Vec<ResolvedFrame> {
 
 #[derive(Debug, PartialEq)]
 pub struct ResolvedFrame {
-    function: String,
-    file: String,
-    line: u32,
+    pub function: String,
+    pub file: String,
+    pub line: u32,
 }
 
 impl From<format::SourceLocation<'_>> for ResolvedFrame {
