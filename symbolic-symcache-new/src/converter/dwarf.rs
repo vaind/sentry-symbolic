@@ -105,18 +105,6 @@ impl Converter {
                 constants::DW_TAG_inlined_subroutine => true,
                 _ => continue,
             };
-            let (caller_file, caller_line, function_idx) = match find_caller_info(entry)? {
-                Some(CallerInfo {
-                    call_file,
-                    call_line,
-                    abstract_origin,
-                }) => {
-                    let caller_file = cu_cache.insert_file(self, call_file)? as u32;
-                    let caller_idx = cu_cache.insert_function(self, abstract_origin)? as u32;
-                    (caller_file, call_line, caller_idx)
-                }
-                None => (0, 0, 0),
-            };
             let mut ranges = dwarf.die_ranges(unit, entry)?;
             while let Some(range) = ranges.next()? {
                 if range.begin == 0 || range.begin == range.end {
@@ -124,6 +112,19 @@ impl Converter {
                     continue;
                 }
                 if is_inlined_subroutine {
+                    let (caller_file, caller_line, function_idx) = match find_caller_info(entry)? {
+                        Some(CallerInfo {
+                            call_file,
+                            call_line,
+                            abstract_origin,
+                        }) => {
+                            let caller_file = cu_cache.insert_file(self, call_file)? as u32;
+                            let caller_idx =
+                                cu_cache.insert_function(self, abstract_origin)? as u32;
+                            (caller_file, call_line, caller_idx)
+                        }
+                        None => (u32::MAX, 0, u32::MAX),
+                    };
                     for callee_source_location in sub_ranges(&mut line_program_ranges, &range) {
                         let mut caller_source_location = callee_source_location.clone();
                         caller_source_location.file_idx = caller_file;
@@ -135,6 +136,20 @@ impl Converter {
                     }
                 } else {
                     let function_idx = cu_cache.insert_function(self, entry.offset())?;
+                    let entry_pc = self.functions[function_idx as usize].entry_pc;
+
+                    // insert a dummy source location in case this function's start is not covered by the line program
+                    if !line_program_ranges.contains_key(&entry_pc) {
+                        line_program_ranges.insert(
+                            entry_pc,
+                            raw::SourceLocation {
+                                function_idx,
+                                line: 0,
+                                file_idx: u32::MAX,
+                                inlined_into_idx: u32::MAX,
+                            },
+                        );
+                    }
                     for source_location in sub_ranges(&mut line_program_ranges, &range) {
                         source_location.function_idx = function_idx;
                     }
