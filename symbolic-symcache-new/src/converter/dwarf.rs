@@ -16,7 +16,7 @@ use crate::ErrorSink;
 type Result<T, E = gimli::Error> = std::result::Result<T, E>;
 
 impl Converter {
-    fn offset_addr_range(&self, range: gimli::Range) -> Option<Range<u32>> {
+    fn offset_addr_range(&self, range: gimli::Range) -> Option<std::ops::Range<u32>> {
         let start = self.offset_addr(range.begin)?;
         let end = self.offset_addr(range.end)?;
         Some(start..end)
@@ -61,7 +61,7 @@ impl Converter {
         unit: &Unit<R>,
         error_sink: &mut E,
     ) -> Result<()> {
-        let lang = find_cu_lang(&unit)
+        let lang = find_cu_lang(unit)
             .unwrap_or_else(|e| {
                 error_sink.raise_error(e);
                 Some(0)
@@ -85,18 +85,24 @@ impl Converter {
         // TODO: figure out if we actually need to keep "sequences" separate?
         let mut line_program_ranges = BTreeMap::new();
         for seq in sequences {
+            // skip sequences beginning outside out addr range
+            if self.offset_addr(seq.start).is_none() {
+                continue;
+            }
             for row in seq.rows {
-                let file_idx = cu_cache.insert_file(self, row.file_index as u64)?;
+                if let Some(addr) = self.offset_addr(row.address) {
+                    let file_idx = cu_cache.insert_file(self, row.file_index as u64)?;
 
-                line_program_ranges.insert(
-                    self.offset_addr(row.address).unwrap_or(u32::MAX),
-                    raw::SourceLocation {
-                        file_idx,
-                        line: row.line,
-                        function_idx: u32::MAX,
-                        inlined_into_idx: u32::MAX,
-                    },
-                );
+                    line_program_ranges.insert(
+                        addr,
+                        raw::SourceLocation {
+                            file_idx,
+                            line: row.line,
+                            function_idx: u32::MAX,
+                            inlined_into_idx: u32::MAX,
+                        },
+                    );
+                }
             }
         }
 
@@ -145,17 +151,14 @@ impl Converter {
                     let entry_pc = self.functions[function_idx as usize].entry_pc;
 
                     // insert a dummy source location in case this function's start is not covered by the line program
-                    if !line_program_ranges.contains_key(&entry_pc) {
-                        line_program_ranges.insert(
-                            entry_pc,
-                            raw::SourceLocation {
-                                function_idx,
-                                line: 0,
-                                file_idx: u32::MAX,
-                                inlined_into_idx: u32::MAX,
-                            },
-                        );
-                    }
+                    line_program_ranges
+                        .entry(entry_pc)
+                        .or_insert(raw::SourceLocation {
+                            function_idx,
+                            line: 0,
+                            file_idx: u32::MAX,
+                            inlined_into_idx: u32::MAX,
+                        });
                     for source_location in sub_ranges(&mut line_program_ranges, range) {
                         source_location.function_idx = function_idx;
                     }
@@ -185,10 +188,10 @@ impl Converter {
 }
 
 /// Returns an iterator of [`SourceLocation`]s that match the given [`gimli::Range`].
-fn sub_ranges<'a>(
-    ranges: &'a mut BTreeMap<u32, raw::SourceLocation>,
+fn sub_ranges(
+    ranges: &mut BTreeMap<u32, raw::SourceLocation>,
     range: std::ops::Range<u32>,
-) -> impl Iterator<Item = &'a mut raw::SourceLocation> {
+) -> impl Iterator<Item = &mut raw::SourceLocation> {
     let first_after = ranges.range(range.end..).next();
     let upper_bound = if let Some((first_after_start, _)) = first_after {
         Bound::Excluded(*first_after_start)
@@ -427,7 +430,7 @@ fn find_function_info<R: gimli::Reader>(
                 linkage_name = Some(attr.value());
             }
             constants::DW_AT_entry_pc => {
-                entry_pc = Some(attr.udata_value().unwrap());
+                entry_pc = attr.udata_value();
             }
             _ => {}
         }
@@ -439,21 +442,20 @@ fn find_function_info<R: gimli::Reader>(
 }
 
 fn find_cu_lang<R: gimli::Reader>(unit: &Unit<R>) -> Result<Option<u16>> {
-    let mut lang = None;
-    let mut cursor = unit.header.entries(&unit.abbreviations);
-    cursor.next_dfs()?;
-    let root = cursor.current().ok_or(gimli::Error::MissingUnitDie)?;
-    let mut attrs = root.attrs();
+    let mut entries = unit.entries();
+    if let Some((_, root)) = entries.next_dfs()? {
+        let mut attrs = root.attrs();
 
-    while let Some(attr) = attrs.next()? {
-        match attr.name() {
-            constants::DW_AT_language => {
-                lang = Some(attr.u16_value().unwrap());
+        while let Some(attr) = attrs.next()? {
+            match attr.name() {
+                constants::DW_AT_language => {
+                    return Ok(attr.u16_value());
+                }
+                _ => {}
             }
-            _ => {}
         }
     }
-    Ok(lang)
+    Ok(None)
 }
 
 /// A sequence of contiguous [`LineProgramRow`]s spanning the address ranges `start` to `end`.
@@ -487,11 +489,6 @@ fn parse_line_program<R: gimli::Reader>(
         if row.end_sequence() {
             if let Some(start) = sequence_rows.first().map(|x| x.address) {
                 let end = row.address();
-                // ignore 0-ranges
-                if start == 0 {
-                    sequence_rows.clear();
-                    continue;
-                }
                 let mut rows = Vec::new();
                 mem::swap(&mut rows, &mut sequence_rows);
                 sequences.push(LineSequence { start, end, rows });
