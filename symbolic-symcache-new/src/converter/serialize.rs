@@ -40,6 +40,9 @@ impl Converter {
         writer.write(&[header])?;
         writer.align()?;
 
+        writer.write(&self.range_threshold.to_ne_bytes())?;
+        writer.align()?;
+
         for (_, s) in self.strings {
             writer.write(&[s])?;
         }
