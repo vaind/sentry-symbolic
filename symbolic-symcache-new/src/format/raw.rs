@@ -3,6 +3,8 @@
 //! TODO: actually write some docs ;-)
 
 /// The magic file preamble as individual bytes.
+use crate::{Index, LineNumber, RelativeAddress};
+
 const SYMCACHE_MAGIC_BYTES: [u8; 4] = *b"SYMC";
 
 /// The magic file preamble to identify SymCache files.
@@ -34,6 +36,8 @@ pub struct Header {
     pub num_ranges: u32,
     /// Total number of bytes used for string data.
     pub string_bytes: u32,
+
+    pub range_threshold: u64,
 }
 
 /// Serialized Function metadata in the SymCache.
@@ -41,9 +45,9 @@ pub struct Header {
 #[repr(C)]
 pub struct Function {
     /// The functions name (reference to a [`String`]).
-    pub name_idx: u32,
+    pub name_idx: Index,
     /// The first address covered by this function.
-    pub entry_pc: u32,
+    pub entry_pc: Option<RelativeAddress>,
     /// The language of the function.
     pub lang: u8,
 }
@@ -53,11 +57,11 @@ pub struct Function {
 #[repr(C)]
 pub struct File {
     /// The optional compilation directory prefix (reference to a [`String`]).
-    pub comp_dir_idx: u32,
+    pub comp_dir_idx: Option<Index>,
     /// The optional directory prefix (reference to a [`String`]).
-    pub directory_idx: u32,
+    pub directory_idx: Option<Index>,
     /// The file path (reference to a [`String`]).
-    pub path_name_idx: u32,
+    pub path_name_idx: Index,
 }
 
 /// A location in a source file, comprising a file, a line, a function, and
@@ -71,14 +75,14 @@ pub struct File {
 #[repr(C)]
 pub struct SourceLocation {
     /// The optional source file (reference to a [`File`]).
-    pub file_idx: u32,
+    pub file_idx: Option<Index>,
     /// The line number.
-    pub line: u32,
+    pub line: Option<LineNumber>,
     /// The function (reference to a [`Function`]).
-    pub function_idx: u32,
+    pub function_idx: Option<Index>,
     /// The caller source location in case this location was inlined
     /// (reference to another [`SourceLocation`]).
-    pub inlined_into_idx: u32,
+    pub inlined_into_idx: Option<Index>,
 }
 
 /// Serialized String in the SymCache.
@@ -97,7 +101,7 @@ pub struct String {
 /// by the next range's start.
 #[derive(Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
-pub struct Range(pub u32);
+pub struct Range(pub RelativeAddress);
 
 /// Returns the amount left to add to the remainder to get 8 if
 /// `to_align` isn't a multiple of 8.

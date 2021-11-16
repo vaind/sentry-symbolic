@@ -1,7 +1,10 @@
 //! Defines the SymCache [`Converter`].
 
-use indexmap::{set::IndexSet, IndexMap};
 use std::collections::BTreeMap;
+use std::convert::TryFrom;
+use std::num::NonZeroU32;
+
+use indexmap::{set::IndexSet, IndexMap};
 
 mod breakpad;
 mod dwarf;
@@ -10,6 +13,7 @@ mod serialize;
 use symbolic_common::Language;
 
 use crate::format::raw;
+use crate::{Index, LineNumber, RelativeAddress};
 pub use serialize::*;
 
 /// The SymCache Converter.
@@ -42,7 +46,7 @@ pub struct Converter {
     ///
     /// Only the starting address of a range is saved, the end address is given implicitly
     /// by the start address of the next range.
-    ranges: BTreeMap<u32, raw::SourceLocation>,
+    ranges: BTreeMap<RelativeAddress, raw::SourceLocation>,
 }
 
 impl Converter {
@@ -57,20 +61,24 @@ impl Converter {
     /// Tries to convert the given `addr`, compressing it into 32-bits and applying the
     /// `range_threshold` (TODO: find better name for that), rejecting any addr that is below the
     /// threshold or exceeds 32-bits.
-    fn offset_addr(&self, addr: u64) -> Option<u32> {
-        use std::convert::TryFrom;
+    fn offset_addr(&self, addr: u64) -> Option<RelativeAddress> {
         addr.checked_sub(self.range_threshold)
-            .and_then(|r| u32::try_from(r).ok())
+            .and_then(|a| (RelativeAddress::try_from(a).ok()))
     }
 
     /// Insert a string into this converter.
     ///
     /// If the string was already present, it is not added again. The returned `u32`
     /// is the string's index in insertion order.
-    fn insert_string(&mut self, s: &str) -> u32 {
+    fn insert_string(&mut self, s: &str) -> Option<Index> {
         if let Some(existing_idx) = self.strings.get_index_of(s) {
-            return existing_idx as u32;
+            return Some(Index::try_from(existing_idx).unwrap());
         }
+
+        if self.strings.len() >= u32::MAX as usize {
+            return None;
+        }
+
         let string_offset = self.string_bytes.len() as u32;
         let string_len = s.len() as u32;
         self.string_bytes.extend(s.bytes());
@@ -81,15 +89,23 @@ impl Converter {
                 string_len,
             },
         );
-        string_idx as u32
+        Some(Index::try_from(string_idx).unwrap())
     }
 
     /// Insert a [`raw::SourceLocation`] into this converter.
     ///
     /// If the `SourceLocation` was already present, it is not added again. The returned `u32`
     /// is the `SourceLocation`'s index in insertion order.
-    fn insert_source_location(&mut self, source_location: raw::SourceLocation) -> u32 {
-        self.source_locations.insert_full(source_location).0 as u32
+    fn insert_source_location(&mut self, source_location: raw::SourceLocation) -> Option<Index> {
+        if let Some(existing_idx) = self.strings.get_index_of(&source_location) {
+            return Some(Index::try_from(existing_idx).unwrap());
+        }
+
+        if self.strings.len() >= u32::MAX as usize {
+            return None;
+        }
+
+        Some(Index::try_from(self.source_locations.insert_full(source_location).0).unwrap())
     }
 
     /// Insert a file into this converter.
@@ -101,32 +117,73 @@ impl Converter {
         path_name: &str,
         directory: Option<&str>,
         comp_dir: Option<&str>,
-    ) -> u32 {
-        let path_name_idx = self.insert_string(path_name);
-        let directory_idx = directory.map_or(u32::MAX, |d| self.insert_string(d));
-        let comp_dir_idx = comp_dir.map_or(u32::MAX, |cd| self.insert_string(cd));
+    ) -> Option<Index> {
+        let path_name_idx = self.insert_string(path_name)?;
+        let directory_idx = if let Some(directory) = directory {
+            match self.insert_string(directory) {
+                Some(idx) => Some(idx),
+                None => {
+                    return None;
+                }
+            }
+        } else {
+            None
+        };
+        let comp_dir_idx = if let Some(comp_dir) = comp_dir {
+            match self.insert_string(comp_dir) {
+                Some(idx) => Some(idx),
+                None => {
+                    return None;
+                }
+            }
+        } else {
+            None
+        };
 
-        let (file_idx, _) = self.files.insert_full(raw::File {
+        let file = raw::File {
             path_name_idx,
             directory_idx,
             comp_dir_idx,
-        });
+        };
 
-        file_idx as u32
+        if let Some(existing_idx) = self.files.get_index_of(&file) {
+            return Some(Index::try_from(existing_idx).unwrap());
+        }
+
+        if self.strings.len() >= u32::MAX as usize {
+            return None;
+        }
+
+        Some(Index::try_from(self.files.insert_full(file).0).unwrap())
     }
 
     /// Insert a function into this converter.
     ///
     /// If the function was already present, it is not added again. The returned `u32`
     /// is the function's index in insertion order.
-    fn insert_function(&mut self, name: &str, entry_pc: u32, lang: Language) -> u32 {
-        let name_idx = self.insert_string(name);
+    fn insert_function(
+        &mut self,
+        name: &str,
+        entry_pc: Option<RelativeAddress>,
+        lang: Language,
+    ) -> Option<Index> {
+        let name_idx = self.insert_string(name)?;
         let lang = lang as u8;
-        let (fun_idx, _) = self.functions.insert_full(raw::Function {
+
+        let function = raw::Function {
             name_idx,
             entry_pc,
             lang,
-        });
-        fun_idx as u32
+        };
+
+        if let Some(existing_idx) = self.functions.get_index_of(&function) {
+            return Some(Index::try_from(existing_idx).unwrap());
+        }
+
+        if self.functions.len() >= u32::MAX as usize {
+            return None;
+        }
+
+        Some(Index::try_from(self.functions.insert_full(function).0).unwrap())
     }
 }

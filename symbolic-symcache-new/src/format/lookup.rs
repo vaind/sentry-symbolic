@@ -1,4 +1,7 @@
+use std::convert::TryFrom;
+
 use super::{raw, Error, Format, Result};
+use crate::{Index, LineNumber};
 
 impl Format<'_> {
     /// Looks up an instruction address in the SymCache, yielding an iterator of [`SourceLocation`]s.
@@ -6,24 +9,24 @@ impl Format<'_> {
     /// This always returns an iterator, however that iterator might be empty in case no [`SourceLocation`]
     /// was found for the given `addr`.
     pub fn lookup(&self, addr: u64) -> SourceLocationIter<'_> {
-        let source_location_start = (self.source_locations.len() - self.ranges.len()) as u32;
-        let source_location_idx = match self.ranges.binary_search_by_key(&(addr as u32), |r| r.0) {
-            Ok(idx) => source_location_start + idx as u32,
-            Err(idx) if idx == 0 => u32::MAX,
-            Err(idx) => source_location_start + idx as u32 - 1,
-        };
+        let source_location_start = self.source_locations.len() - self.ranges.len();
+        let relative_addr = self.offset_addr(addr);
+        let source_location_idx = relative_addr.and_then(|relative_addr| {
+            match self.ranges.binary_search_by_key(&relative_addr, |r| r.0) {
+                Ok(idx) => Some(Index::try_from(source_location_start + idx).unwrap()),
+                Err(idx) if idx == 0 => None,
+                Err(idx) => Some(Index::try_from(source_location_start + idx - 1).unwrap()),
+            }
+        });
         SourceLocationIter {
             format: self,
             source_location_idx,
         }
     }
 
-    fn get_file(&self, file_idx: u32) -> Result<Option<File<'_>>> {
-        if file_idx == u32::MAX {
-            return Ok(None);
-        }
-        match self.files.get(file_idx as usize) {
-            Some(file) => Ok(Some(File { format: self, file })),
+    fn get_file(&self, file_idx: Index) -> Result<File<'_>> {
+        match self.files.get::<usize>(file_idx.into()) {
+            Some(file) => Ok(File { format: self, file }),
             None => Err(Error::InvalidFileReference(file_idx)),
         }
     }
@@ -56,33 +59,33 @@ pub struct File<'data> {
 
 impl<'data> File<'data> {
     /// Resolves the compilation directory of this source file.
-    pub fn comp_dir(&self) -> Result<Option<&'data str>> {
-        self.format.get_string(self.file.comp_dir_idx)
+    pub fn comp_dir(&self) -> Option<Result<&'data str>> {
+        self.file
+            .comp_dir_idx
+            .map(|idx| self.format.get_string(idx))
     }
 
     /// Resolves the parent directory of this source file.
-    pub fn directory(&self) -> Result<Option<&'data str>> {
-        self.format.get_string(self.file.directory_idx)
+    pub fn directory(&self) -> Option<Result<&'data str>> {
+        self.file
+            .directory_idx
+            .map(|idx| self.format.get_string(idx))
     }
 
     /// Resolves the final path name fragment of this source file.
-    pub fn path_name(&self) -> Result<Option<&'data str>> {
+    pub fn path_name(&self) -> Result<&'data str> {
         self.format.get_string(self.file.path_name_idx)
     }
 
     /// Resolves and concatenates the full path based on its individual fragments.
-    pub fn full_path(&self) -> Result<Option<String>> {
-        let comp_dir = self.comp_dir()?.unwrap_or_default();
-        let directory = self.directory()?.unwrap_or_default();
-        let path_name = self.path_name()?.unwrap_or_default();
+    pub fn full_path(&self) -> Result<String> {
+        let comp_dir = self.comp_dir().unwrap_or(Ok(""))?;
+        let directory = self.directory().unwrap_or(Ok(""))?;
+        let path_name = self.path_name()?;
 
         let prefix = symbolic_common::join_path(comp_dir, directory);
         let full_path = symbolic_common::join_path(&prefix, path_name);
-        Ok(if full_path.is_empty() {
-            None
-        } else {
-            Some(full_path)
-        })
+        Ok(full_path)
     }
 }
 
@@ -95,7 +98,7 @@ pub struct Function<'data> {
 
 impl<'data> Function<'data> {
     /// The possibly mangled name/symbol of this function.
-    pub fn name(&self) -> Result<Option<&'data str>> {
+    pub fn name(&self) -> Result<&'data str> {
         self.format.get_string(self.function.name_idx)
     }
 }
@@ -104,7 +107,7 @@ impl<'data> Function<'data> {
 #[derive(Debug)]
 pub struct SourceLocationIter<'data> {
     format: &'data Format<'data>,
-    source_location_idx: u32,
+    source_location_idx: Option<Index>,
 }
 
 impl<'data> SourceLocationIter<'data> {
@@ -112,24 +115,18 @@ impl<'data> SourceLocationIter<'data> {
     // We return a `Result` here, so its not a *real* `Iterator`
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Result<Option<SourceLocation<'data>>> {
-        if self.source_location_idx == u32::MAX {
-            return Ok(None);
-        }
-        match self
-            .format
-            .source_locations
-            .get(self.source_location_idx as usize)
-        {
-            Some(source_location) => {
-                self.source_location_idx = source_location.inlined_into_idx;
-                Ok(Some(SourceLocation {
-                    format: self.format,
-                    source_location,
-                }))
-            }
-            None => Err(Error::InvalidSourceLocationReference(
-                self.source_location_idx,
-            )),
+        match self.source_location_idx {
+            None => Ok(None),
+            Some(idx) => match self.format.source_locations.get::<usize>(idx.into()) {
+                Some(source_location) => {
+                    self.source_location_idx = source_location.inlined_into_idx;
+                    Ok(Some(SourceLocation {
+                        format: self.format,
+                        source_location,
+                    }))
+                }
+                None => Err(Error::InvalidSourceLocationReference(idx)),
+            },
         }
     }
 }
@@ -148,13 +145,15 @@ impl SourceLocation<'_> {
     /// The source line corresponding to the instruction.
     ///
     /// This might return `0` when no line information can be found.
-    pub fn line(&self) -> u32 {
+    pub fn line(&self) -> Option<LineNumber> {
         self.source_location.line
     }
 
     /// The source file corresponding to the instruction.
-    pub fn file(&self) -> Result<Option<File<'_>>> {
-        self.format.get_file(self.source_location.file_idx)
+    pub fn file(&self) -> Option<Result<File<'_>>> {
+        self.source_location
+            .file_idx
+            .map(|idx| self.format.get_file(idx))
     }
 
     /// The function corresponding to the instruction.

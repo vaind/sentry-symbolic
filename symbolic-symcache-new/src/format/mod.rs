@@ -1,12 +1,14 @@
 //! The SymCache binary format.
 //!
 //!
+use std::convert::TryFrom;
 use std::{mem, ptr};
 
 mod error;
 mod lookup;
 pub(crate) mod raw;
 
+use crate::{Index, RelativeAddress};
 pub use error::Error;
 pub use lookup::*;
 use raw::align_to_eight;
@@ -141,13 +143,11 @@ impl<'data> Format<'data> {
     }
 
     /// Resolves a string reference to the pointed-to `&str` data.
-    fn get_string(&self, string_idx: u32) -> Result<Option<&str>> {
-        if string_idx == u32::MAX {
-            return Ok(None);
-        }
-        let string = self
+    fn get_string(&self, string_idx: Index) -> Result<&str> {
+        let idx: usize = string_idx.into();
+        let string: &raw::String = self
             .strings
-            .get(string_idx as usize)
+            .get(idx)
             .ok_or(Error::InvalidStringReference(string_idx))?;
 
         let start_offset = string.string_offset as usize;
@@ -160,6 +160,14 @@ impl<'data> Format<'data> {
         let s =
             std::str::from_utf8(bytes).map_err(|err| Error::InvalidStringData(string_idx, err))?;
 
-        Ok(Some(s))
+        Ok(s)
+    }
+
+    /// Tries to convert the given `addr`, compressing it into 32-bits and applying the
+    /// `range_threshold` (TODO: find better name for that), rejecting any addr that is below the
+    /// threshold or exceeds 32-bits.
+    fn offset_addr(&self, addr: u64) -> Option<RelativeAddress> {
+        addr.checked_sub(self.range_threshold)
+            .and_then(|a| (RelativeAddress::try_from(a).ok()))
     }
 }

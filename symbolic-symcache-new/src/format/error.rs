@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::Index;
+
 /// Errors returned while loading/parsing a serialized SymCache.
 ///
 /// After a SymCache was successfully parsed via [`Format::parse`], an Error that occurs during
@@ -27,20 +29,20 @@ pub enum Error {
     BadFormatLength,
     /// The file index is out of bounds.
     #[error("file index {0} out of bounds")]
-    InvalidFileReference(u32),
+    InvalidFileReference(Index),
     /// The function index is out of bounds.
     #[error("function index {0} out of bounds")]
-    InvalidFunctionReference(u32),
+    InvalidFunctionReference(Index),
     /// The source location index is out of bounds.
     #[error("source location index {0} out of bounds")]
-    InvalidSourceLocationReference(u32),
+    InvalidSourceLocationReference(Index),
     /// The string index is out of bounds.
     #[error("string index {0} out of bounds")]
-    InvalidStringReference(u32),
+    InvalidStringReference(Index),
     /// The string data is out of bounds.
     #[error("string data {0} out of bounds")]
-    InvalidStringDataReference(u32),
+    InvalidStringDataReference(Index),
     /// The string data is invalid UTF-8.
     #[error("string data {0} contains invalid UTF-8")]
-    InvalidStringData(u32, std::str::Utf8Error),
+    InvalidStringData(Index, std::str::Utf8Error),
 }
