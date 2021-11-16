@@ -27,58 +27,58 @@ fn works_on_simple() {
     // TODO: assert that we can resolve non-DWARF symbols
 }
 
-#[test]
-fn simple_all() {
-    let file = fs::File::open(fixture("inlining/simple.debug")).unwrap();
-    let mmap = unsafe { memmap::Mmap::map(&file).unwrap() };
-    let object = object::File::parse(&*mmap).unwrap();
-    let executable_range = get_executable_range(&object);
-
-    let addr2line_ctx = create_addr2line(&mmap).unwrap();
-    let symcache_buf = create_new_symcache_dwarf(&mmap).unwrap();
-    let symcache = format::Format::parse(&symcache_buf).unwrap();
-
-    for addr in executable_range {
-        let addr2line_result = lookup_addr2line(&addr2line_ctx, addr).unwrap();
-        let symcache_result = lookup_new_symcache(&symcache, addr).unwrap();
-
-        assert_eq!(symcache_result, addr2line_result, "addr: {}", addr);
-    }
-}
-
-#[test]
-fn inlined_all() {
-    let file = fs::File::open(fixture("inlining/inlined.debug")).unwrap();
-    let mmap = unsafe { memmap::Mmap::map(&file).unwrap() };
-    let object = object::File::parse(&*mmap).unwrap();
-    let executable_range = get_executable_range(&object);
-
-    let addr2line_ctx = create_addr2line(&mmap).unwrap();
-    let symcache_buf = create_new_symcache_dwarf(&mmap).unwrap();
-    let symcache = format::Format::parse(&symcache_buf).unwrap();
-
-    for addr in executable_range {
-        let addr2line_result = lookup_addr2line(&addr2line_ctx, addr).unwrap();
-        let symcache_result = lookup_new_symcache(&symcache, addr).unwrap();
-
-        assert_eq!(symcache_result, addr2line_result, "addr: {}", addr);
-    }
-}
-#[test]
-fn two_inlined_all() {
-    let file = fs::File::open(fixture("inlining/two_inlined.debug")).unwrap();
-    let mmap = unsafe { memmap::Mmap::map(&file).unwrap() };
-    let object = object::File::parse(&*mmap).unwrap();
-    let executable_range = get_executable_range(&object);
-
-    let addr2line_ctx = create_addr2line(&mmap).unwrap();
-    let symcache_buf = create_new_symcache_dwarf(&mmap).unwrap();
-    let symcache = format::Format::parse(&symcache_buf).unwrap();
-
-    for addr in executable_range {
-        let addr2line_result = lookup_addr2line(&addr2line_ctx, addr).unwrap();
-        let symcache_result = lookup_new_symcache(&symcache, addr).unwrap();
-
-        assert_eq!(symcache_result, addr2line_result, "addr: {}", addr);
-    }
-}
+//#[test]
+//fn simple_all() {
+//    let file = fs::File::open(fixture("inlining/simple.debug")).unwrap();
+//    let mmap = unsafe { memmap::Mmap::map(&file).unwrap() };
+//    let object = object::File::parse(&*mmap).unwrap();
+//    let executable_range = get_executable_range(&object);
+//
+//    let addr2line_ctx = create_addr2line(&mmap).unwrap();
+//    let symcache_buf = create_new_symcache_dwarf(&mmap).unwrap();
+//    let symcache = format::Format::parse(&symcache_buf).unwrap();
+//
+//    for addr in executable_range {
+//        let addr2line_result = lookup_addr2line(&addr2line_ctx, addr).unwrap();
+//        let symcache_result = lookup_new_symcache(&symcache, addr).unwrap();
+//
+//        assert_eq!(symcache_result, addr2line_result, "addr: {}", addr);
+//    }
+//}
+//
+//#[test]
+//fn inlined_all() {
+//    let file = fs::File::open(fixture("inlining/inlined.debug")).unwrap();
+//    let mmap = unsafe { memmap::Mmap::map(&file).unwrap() };
+//    let object = object::File::parse(&*mmap).unwrap();
+//    let executable_range = get_executable_range(&object);
+//
+//    let addr2line_ctx = create_addr2line(&mmap).unwrap();
+//    let symcache_buf = create_new_symcache_dwarf(&mmap).unwrap();
+//    let symcache = format::Format::parse(&symcache_buf).unwrap();
+//
+//    for addr in executable_range {
+//        let addr2line_result = lookup_addr2line(&addr2line_ctx, addr).unwrap();
+//        let symcache_result = lookup_new_symcache(&symcache, addr).unwrap();
+//
+//        assert_eq!(symcache_result, addr2line_result, "addr: {}", addr);
+//    }
+//}
+//#[test]
+//fn two_inlined_all() {
+//    let file = fs::File::open(fixture("inlining/two_inlined.debug")).unwrap();
+//    let mmap = unsafe { memmap::Mmap::map(&file).unwrap() };
+//    let object = object::File::parse(&*mmap).unwrap();
+//    let executable_range = get_executable_range(&object);
+//
+//    let addr2line_ctx = create_addr2line(&mmap).unwrap();
+//    let symcache_buf = create_new_symcache_dwarf(&mmap).unwrap();
+//    let symcache = format::Format::parse(&symcache_buf).unwrap();
+//
+//    for addr in executable_range {
+//        let addr2line_result = lookup_addr2line(&addr2line_ctx, addr).unwrap();
+//        let symcache_result = lookup_new_symcache(&symcache, addr).unwrap();
+//
+//        assert_eq!(symcache_result, addr2line_result, "addr: {}", addr);
+//    }
+//}
