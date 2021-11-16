@@ -27,6 +27,30 @@ fn works_on_simple() {
     // TODO: assert that we can resolve non-DWARF symbols
 }
 
+#[test]
+fn works_on_inlined() {
+    let buf = fs::read(fixture("inlining/inlined.debug")).unwrap();
+    let symcache_buf = create_new_symcache_dwarf(&buf).unwrap();
+    let symcache = Format::parse(&symcache_buf).unwrap();
+
+    assert_eq!(
+        &resolve_lookup(&symcache, 0x10f2),
+        &[
+            ResolvedFrame {
+                function: "_ZN7inlined10inlined_fn17haa7a5b60e644bff9E".into(),
+                file: "/root-comp-dir/inlined.rs".into(),
+                line: 10
+            },
+            ResolvedFrame {
+                function: "caller_fn".into(),
+                file: "/root-comp-dir/inlined.rs".into(),
+                line: 3
+            }
+        ]    );
+
+    // TODO: assert that we can resolve non-DWARF symbols
+}
+
 //#[test]
 //fn simple_all() {
 //    let file = fs::File::open(fixture("inlining/simple.debug")).unwrap();
