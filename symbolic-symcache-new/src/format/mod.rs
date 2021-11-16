@@ -56,9 +56,6 @@ impl<'data> Format<'data> {
             return Err(Error::WrongVersion);
         }
 
-        let mut range_threshold_size = mem::size_of::<u64>();
-        range_threshold_size += align_to_eight(range_threshold_size);
-
         let mut strings_size = mem::size_of::<raw::String>() * header.num_strings as usize;
         strings_size += align_to_eight(strings_size);
 
@@ -76,7 +73,6 @@ impl<'data> Format<'data> {
         ranges_size += align_to_eight(ranges_size);
 
         let expected_buf_size = header_size
-            + range_threshold_size
             + strings_size
             + files_size
             + functions_size
@@ -97,8 +93,7 @@ impl<'data> Format<'data> {
 
         // SAFETY: we just made sure that all the pointers we are constructing via pointer
         // arithmetic are within `buf`
-        let range_threshold_start = unsafe { buf.as_ptr().add(header_size) };
-        let strings_start = unsafe { range_threshold_start.add(range_threshold_size) };
+        let strings_start = unsafe { buf.as_ptr().add(header_size) };
         let files_start = unsafe { strings_start.add(strings_size) };
         let functions_start = unsafe { files_start.add(files_size) };
         let source_locations_start = unsafe { functions_start.add(functions_size) };
@@ -107,7 +102,6 @@ impl<'data> Format<'data> {
 
         // SAFETY: the above buffer size check also made sure we are not going out of bounds
         // here
-        let range_threshold = unsafe { *(range_threshold_start as *const u64) };
         let strings = unsafe {
             &*(ptr::slice_from_raw_parts(strings_start, header.num_strings as usize)
                 as *const [raw::String])
@@ -136,7 +130,7 @@ impl<'data> Format<'data> {
         };
 
         Ok(Format {
-            range_threshold,
+            range_threshold: header.range_threshold,
             strings,
             files,
             functions,

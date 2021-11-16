@@ -35,12 +35,10 @@ impl Converter {
             num_source_locations,
             num_ranges,
             string_bytes,
+            range_threshold: self.range_threshold,
         };
 
         writer.write(&[header])?;
-        writer.align()?;
-
-        writer.write(&self.range_threshold.to_ne_bytes())?;
         writer.align()?;
 
         for (_, s) in self.strings {
