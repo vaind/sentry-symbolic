@@ -9,8 +9,6 @@ use gimli::{
     LineProgramHeader, ReaderOffset, Unit, UnitOffset,
 };
 
-use symbolic_common::Language;
-
 use super::*;
 use crate::format::raw;
 use crate::ErrorSink;
@@ -43,15 +41,7 @@ impl Converter {
                     continue;
                 }
             };
-            let lang = find_cu_lang(&unit)
-                .unwrap_or_else(|e| {
-                    error_sink.raise_error(e);
-                    Some(0)
-                })
-                .unwrap_or_default() as u8;
-            if let Err(err) =
-                self.process_dwarf_cu(&mut reusable_cache, dwarf, &unit, lang, error_sink)
-            {
+            if let Err(err) = self.process_dwarf_cu(&mut reusable_cache, dwarf, &unit, error_sink) {
                 error_sink.raise_error(err);
             }
         }
@@ -63,9 +53,14 @@ impl Converter {
         reusable_cache: &mut ReusableCaches,
         dwarf: &Dwarf<R>,
         unit: &Unit<R>,
-        lang: u8,
-        _error_sink: &mut E,
+        error_sink: &mut E,
     ) -> Result<()> {
+        let lang = find_cu_lang(&unit)
+            .unwrap_or_else(|e| {
+                error_sink.raise_error(e);
+                Some(0)
+            })
+            .unwrap_or_default() as u8;
         // Construct LineRow Sequences.
         let line_program = match unit.line_program.clone() {
             Some(lp) => lp,
@@ -272,7 +267,8 @@ where
             Entry::Vacant(e) => e,
         };
         let die = self.unit.entry(die_offset)?;
-        let function_name_idx = match find_function_name(&die)? {
+        let FunctionInfo { name, entry_pc } = find_function_info(&die)?;
+        let function_name_idx = match name {
             Some(name) => {
                 let attr = self.dwarf.attr_string(self.unit, name)?;
                 converter.insert_string(&attr.to_string()?)
@@ -280,13 +276,13 @@ where
             None => u32::MAX,
         };
 
-        let entry_addr = find_function_entry_addr(self.dwarf, self.unit, &die)?;
+        let entry_pc = entry_pc.unwrap_or(u32::MAX as u64) as u32;
 
         let function_idx = converter
             .functions
             .insert_full(raw::Function {
                 name_idx: function_name_idx,
-                entry_addr: entry_addr.unwrap_or(u32::MAX as u64) as u32,
+                entry_pc,
                 lang: self.lang,
             })
             .0 as u32;
@@ -386,11 +382,18 @@ fn find_caller_info<R: gimli::Reader>(
     })
 }
 
-fn find_function_name<R: gimli::Reader>(
+#[derive(Debug)]
+struct FunctionInfo<R: gimli::Reader> {
+    name: Option<AttributeValue<R>>,
+    entry_pc: Option<u64>,
+}
+
+fn find_function_info<R: gimli::Reader>(
     entry: &DebuggingInformationEntry<R>,
-) -> Result<Option<AttributeValue<R>>> {
+) -> Result<FunctionInfo<R>> {
     let mut name = None;
     let mut linkage_name = None;
+    let mut entry_pc = None;
     let mut attrs = entry.attrs();
     while let Some(attr) = attrs.next()? {
         match attr.name() {
@@ -400,19 +403,16 @@ fn find_function_name<R: gimli::Reader>(
             constants::DW_AT_linkage_name => {
                 linkage_name = Some(attr.value());
             }
+            constants::DW_AT_entry_pc => {
+                entry_pc = Some(attr.udata_value().unwrap());
+            }
             _ => {}
         }
     }
-    Ok(linkage_name.or(name))
-}
-
-fn find_function_entry_addr<R: gimli::Reader>(
-    dwarf: &Dwarf<R>,
-    unit: &Unit<R>,
-    die: &DebuggingInformationEntry<R>,
-) -> Result<Option<u64>> {
-    let first_range = dwarf.die_ranges(unit, die)?.next()?;
-    Ok(first_range.map(|r| r.begin))
+    Ok(FunctionInfo {
+        name: linkage_name.or(name),
+        entry_pc,
+    })
 }
 
 fn find_cu_lang<R: gimli::Reader>(unit: &Unit<R>) -> Result<Option<u16>> {

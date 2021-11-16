@@ -1,5 +1,3 @@
-use symbolic_common::Language;
-
 const SYMCACHE_MAGIC_BYTES: [u8; 4] = *b"SYMC";
 
 /// The magic file preamble to identify symcache files.
@@ -40,7 +38,7 @@ pub struct Function {
     /// The functions name (reference to a [`String`]).
     pub name_idx: u32,
     /// The first address covered by this function.
-    pub entry_addr: u32,
+    pub entry_pc: u32,
     /// The language of the function.
     pub lang: u8,
 }

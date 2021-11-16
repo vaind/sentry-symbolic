@@ -39,21 +39,21 @@ impl Converter {
 
             // there's a bit of a dance here, we need to look at the first line
             // record before we insert the function, otherwise we don't know the
-            // `entry_addr`
+            // `entry_pc`
             let mut func_idx = None;
-            let mut entry_addr = None;
+            let mut entry_pc = None;
 
             for line in func_record.lines() {
                 let line_record = line?;
                 let address = line_record.address as u32;
 
-                let entry_addr = *entry_addr.get_or_insert(address);
+                let entry_pc = *entry_pc.get_or_insert(address);
 
                 let func_idx = *func_idx.get_or_insert_with(|| {
                     // NOTE: Calling insert_function in this loop means that a function
                     // won't be inserted if it has no line records. I think this should be fine,
                     // no address lookup could ever hit that function even if we inserted it.
-                    self.insert_function(func_record.name, entry_addr, Language::Unknown)
+                    self.insert_function(func_record.name, entry_pc, Language::Unknown)
                 });
 
                 let source_location = raw::SourceLocation {
