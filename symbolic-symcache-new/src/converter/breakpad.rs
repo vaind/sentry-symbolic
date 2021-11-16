@@ -37,7 +37,7 @@ impl Converter {
         for function in breakpad.func_records() {
             let func_record = function?;
 
-            let entry_pc = func_record.address as u32;
+            let entry_pc = self.offset_addr(func_record.address).unwrap_or(u32::MAX);
             let function_idx = self.insert_function(func_record.name, entry_pc, Language::Unknown);
 
             // insert a dummy source location in case we don't have any line records
@@ -53,10 +53,11 @@ impl Converter {
 
             for line in func_record.lines() {
                 let line_record = line?;
-                let address = line_record.address as u32;
+                let address = self.offset_addr(line_record.address).unwrap_or(u32::MAX);
 
                 let source_location = raw::SourceLocation {
                     file_idx: file_map[&line_record.file_id],
+                    // TODO: what about line numbers > u32::MAX?
                     line: line_record.line as u32,
                     function_idx,
                     inlined_into_idx: u32::MAX,

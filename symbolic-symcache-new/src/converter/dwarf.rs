@@ -16,6 +16,12 @@ use crate::ErrorSink;
 type Result<T, E = gimli::Error> = std::result::Result<T, E>;
 
 impl Converter {
+    fn offset_addr_range(&self, range: gimli::Range) -> Option<Range<u32>> {
+        let start = self.offset_addr(range.begin)?;
+        let end = self.offset_addr(range.end)?;
+        Some(start..end)
+    }
+
     /// Processes the given [`Dwarf`] file.
     ///
     /// This feeds any errors that were raised during processing into the given [`ErrorSink`].
@@ -83,7 +89,7 @@ impl Converter {
                 let file_idx = cu_cache.insert_file(self, row.file_index as u64)?;
 
                 line_program_ranges.insert(
-                    row.address as u32,
+                    self.offset_addr(row.address).unwrap_or(u32::MAX),
                     raw::SourceLocation {
                         file_idx,
                         line: row.line,
@@ -107,10 +113,11 @@ impl Converter {
             };
             let mut ranges = dwarf.die_ranges(unit, entry)?;
             while let Some(range) = ranges.next()? {
-                if range.begin == 0 || range.begin == range.end {
-                    // ignore 0-ranges
-                    continue;
-                }
+                let range = match self.offset_addr_range(range) {
+                    Some(range) => range,
+                    None => continue,
+                };
+
                 if is_inlined_subroutine {
                     let (caller_file, caller_line, function_idx) = match find_caller_info(entry)? {
                         Some(CallerInfo {
@@ -118,21 +125,20 @@ impl Converter {
                             call_line,
                             abstract_origin,
                         }) => {
-                            let caller_file = cu_cache.insert_file(self, call_file)? as u32;
-                            let caller_idx =
-                                cu_cache.insert_function(self, abstract_origin)? as u32;
+                            let caller_file = cu_cache.insert_file(self, call_file)?;
+                            let caller_idx = cu_cache.insert_function(self, abstract_origin)?;
                             (caller_file, call_line, caller_idx)
                         }
                         None => (u32::MAX, 0, u32::MAX),
                     };
-                    for callee_source_location in sub_ranges(&mut line_program_ranges, &range) {
+                    for callee_source_location in sub_ranges(&mut line_program_ranges, range) {
                         let mut caller_source_location = callee_source_location.clone();
                         caller_source_location.file_idx = caller_file;
                         caller_source_location.line = caller_line;
+                        callee_source_location.function_idx = function_idx;
 
                         callee_source_location.inlined_into_idx =
                             self.insert_source_location(caller_source_location);
-                        callee_source_location.function_idx = function_idx;
                     }
                 } else {
                     let function_idx = cu_cache.insert_function(self, entry.offset())?;
@@ -150,7 +156,7 @@ impl Converter {
                             },
                         );
                     }
-                    for source_location in sub_ranges(&mut line_program_ranges, &range) {
+                    for source_location in sub_ranges(&mut line_program_ranges, range) {
                         source_location.function_idx = function_idx;
                     }
                 }
@@ -181,15 +187,15 @@ impl Converter {
 /// Returns an iterator of [`SourceLocation`]s that match the given [`gimli::Range`].
 fn sub_ranges<'a>(
     ranges: &'a mut BTreeMap<u32, raw::SourceLocation>,
-    range: &gimli::Range,
+    range: std::ops::Range<u32>,
 ) -> impl Iterator<Item = &'a mut raw::SourceLocation> {
-    let first_after = ranges.range(range.end as u32..).next();
+    let first_after = ranges.range(range.end..).next();
     let upper_bound = if let Some((first_after_start, _)) = first_after {
         Bound::Excluded(*first_after_start)
     } else {
         Bound::Unbounded
     };
-    let lower_bound = Bound::Included(range.begin as u32);
+    let lower_bound = Bound::Included(range.start);
     ranges.range_mut((lower_bound, upper_bound)).map(|(_, v)| v)
 }
 
@@ -198,8 +204,8 @@ fn sub_ranges<'a>(
 /// Only the *allocation* is being reused, not the actual data. The data is cleared on each CU.
 #[derive(Debug, Default)]
 struct ReusableCaches {
-    file_mapping: HashMap<u32, u32>,
-    function_mapping: HashMap<u32, u32>,
+    file_mapping: HashMap<u64, u32>,
+    function_mapping: HashMap<u64, u32>,
 }
 
 impl ReusableCaches {
@@ -276,7 +282,7 @@ where
         let entry = match self
             .reusable_cache
             .function_mapping
-            .entry(die_offset.0.into_u64() as u32)
+            .entry(die_offset.0.into_u64())
         {
             Entry::Occupied(e) => return Ok(*e.get()),
             Entry::Vacant(e) => e,
@@ -291,7 +297,9 @@ where
             None => u32::MAX,
         };
 
-        let entry_pc = entry_pc.unwrap_or(u32::MAX as u64) as u32;
+        let entry_pc = entry_pc
+            .and_then(|epc| converter.offset_addr(epc))
+            .unwrap_or(u32::MAX);
 
         let function_idx = converter
             .functions
@@ -311,7 +319,7 @@ where
     ///
     /// Returns the index of the file in the global file table.
     fn insert_file(&mut self, converter: &mut Converter, file_index: u64) -> Result<u32> {
-        let entry = match self.reusable_cache.file_mapping.entry(file_index as u32) {
+        let entry = match self.reusable_cache.file_mapping.entry(file_index) {
             Entry::Occupied(e) => return Ok(*e.get()),
             Entry::Vacant(e) => e,
         };
