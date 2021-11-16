@@ -18,6 +18,14 @@ pub use serialize::*;
 /// then be serialized to disk via its [`Converter::serialize`] method.
 #[derive(Debug, Default)]
 pub struct Converter {
+    /// The minimum addr for all the ranges in the debug file.
+    /// This is used to ignore ranges that are below this threshold, as linkers leave range data
+    /// intact, but rather set removed ranges to 0 (or below this threshold).
+    /// Also, this is used as an offset for the saved ranges, to decrease the likelyhood they
+    /// overflow `u32`.
+    // TODO: figure out a better name. is this the *load bias*? where do we get this from?
+    range_threshold: u64,
+
     /// The concatenation of all strings that have been added to this `Converter`.
     string_bytes: Vec<u8>,
     /// A map from [`String`]s that have been added to this `Converter` to [`StringRef`]s, i.e.,
@@ -45,6 +53,15 @@ impl Converter {
     //     pub fn transform_strings<F: FnMut(String) -> String>(&mut self, _mapper: F) {
     //         // TODO: transform all the strings, for example to apply BCSymbolMaps.
     //     }
+
+    /// Tries to convert the given `addr`, compressing it into 32-bits and applying the
+    /// `range_threshold` (TODO: find better name for that), rejecting any addr that is below the
+    /// threshold or exceeds 32-bits.
+    fn offset_addr(&self, addr: u64) -> Option<u32> {
+        use std::convert::TryFrom;
+        addr.checked_sub(self.range_threshold)
+            .and_then(|r| u32::try_from(r).ok())
+    }
 
     /// Insert a string into this converter.
     ///
