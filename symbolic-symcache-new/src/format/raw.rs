@@ -1,6 +1,11 @@
+//! The raw SymCache binary file format internals.
+//!
+//! TODO: actually write some docs ;-)
+
+/// The magic file preamble as individual bytes.
 const SYMCACHE_MAGIC_BYTES: [u8; 4] = *b"SYMC";
 
-/// The magic file preamble to identify symcache files.
+/// The magic file preamble to identify SymCache files.
 ///
 /// Serialized as ASCII "SYMC" on little-endian (x64) systems.
 pub const SYMCACHE_MAGIC: u32 = u32::from_be_bytes(SYMCACHE_MAGIC_BYTES);
@@ -102,5 +107,33 @@ pub fn align_to_eight(to_align: usize) -> usize {
         remainder
     } else {
         8 - remainder
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::mem;
+
+    use super::*;
+
+    #[test]
+    fn test_sizeof() {
+        assert_eq!(mem::size_of::<Header>(), 32);
+        assert_eq!(mem::align_of::<Header>(), 4);
+
+        assert_eq!(mem::size_of::<Function>(), 12);
+        assert_eq!(mem::align_of::<Function>(), 4);
+
+        assert_eq!(mem::size_of::<File>(), 12);
+        assert_eq!(mem::align_of::<File>(), 4);
+
+        assert_eq!(mem::size_of::<SourceLocation>(), 16);
+        assert_eq!(mem::align_of::<SourceLocation>(), 4);
+
+        assert_eq!(mem::size_of::<String>(), 8);
+        assert_eq!(mem::align_of::<String>(), 4);
+
+        assert_eq!(mem::size_of::<Range>(), 4);
+        assert_eq!(mem::align_of::<Range>(), 4);
     }
 }
