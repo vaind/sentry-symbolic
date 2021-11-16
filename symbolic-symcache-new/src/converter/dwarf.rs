@@ -282,16 +282,8 @@ where
         converter: &mut Converter,
         die_offset: UnitOffset<R::Offset>,
     ) -> Result<u32> {
-        let entry = match self
-            .reusable_cache
-            .function_mapping
-            .entry(die_offset.0.into_u64())
-        {
-            Entry::Occupied(e) => return Ok(*e.get()),
-            Entry::Vacant(e) => e,
-        };
         let die = self.unit.entry(die_offset)?;
-        let FunctionInfo { name, entry_pc } = find_function_info(&die)?;
+        let FunctionInfo { name, entry_pc } = find_function_info(self, &die)?;
         let function_name_idx = match name {
             Some(name) => {
                 let attr = self.dwarf.attr_string(self.unit, name)?;
@@ -313,6 +305,14 @@ where
             })
             .0 as u32;
 
+        let entry = match self
+            .reusable_cache
+            .function_mapping
+            .entry(die_offset.0.into_u64())
+        {
+            Entry::Occupied(e) => return Ok(*e.get()),
+            Entry::Vacant(e) => e,
+        };
         entry.insert(function_idx);
 
         Ok(function_idx)
@@ -391,6 +391,7 @@ fn find_caller_info<R: gimli::Reader>(
                 call_line = attr.udata_value().map(|val| val as u32);
             }
             constants::DW_AT_abstract_origin => {
+                // TODO: should we just follow_function_ref here directly?
                 if let gimli::AttributeValue::UnitRef(ur) = attr.value() {
                     abstract_origin = Some(ur);
                 }
@@ -415,8 +416,10 @@ struct FunctionInfo<R: gimli::Reader> {
 }
 
 fn find_function_info<R: gimli::Reader>(
+    cache: &PerCuCache<R>,
     entry: &DebuggingInformationEntry<R>,
 ) -> Result<FunctionInfo<R>> {
+    // ~Function::parse
     let mut name = None;
     let mut linkage_name = None;
     let mut entry_pc = None;
@@ -429,8 +432,12 @@ fn find_function_info<R: gimli::Reader>(
             constants::DW_AT_linkage_name => {
                 linkage_name = Some(attr.value());
             }
+            // TODO: Does this need to be backfilled with DW_AT_low_pc?
             constants::DW_AT_entry_pc => {
                 entry_pc = attr.udata_value();
+            }
+            constants::DW_AT_abstract_origin => {
+                name = follow_function_ref(cache, attr.value())?;
             }
             _ => {}
         }
@@ -439,6 +446,64 @@ fn find_function_info<R: gimli::Reader>(
         name: linkage_name.or(name),
         entry_pc,
     })
+}
+
+fn follow_function_ref<R: gimli::Reader>(
+    cache: &PerCuCache<R>,
+    attr: AttributeValue<R>,
+) -> Result<Option<AttributeValue<R>>> {
+    match attr {
+        AttributeValue::UnitRef(offset) => follow_referenced_name(cache, offset),
+        // TODO: these require different units to be passed in and used in `resolve_function_name`
+        // AttributeValue::DebugInfoRef(dr) => {}
+        // AttributeValue::DebugInfoRefSup(dr) => {}
+        _ => Ok(None),
+    }
+}
+
+fn follow_referenced_name<R: gimli::Reader>(
+    cache: &PerCuCache<R>,
+    offset: gimli::UnitOffset<R::Offset>,
+) -> Result<Option<AttributeValue<R>>> {
+    let mut entries = cache.unit.entries_at_offset(offset)?;
+    entries.next_entry()?;
+    let entry = if let Some(entry) = entries.current() {
+        entry
+    } else {
+        return Ok(None);
+    };
+
+    let mut attrs = entry.attrs();
+    let mut fallback_name = None;
+    let mut reference_target = None;
+
+    while let Some(attr) = attrs.next()? {
+        match attr.name() {
+            // Prioritize these. If we get them, take them.
+            constants::DW_AT_linkage_name | constants::DW_AT_MIPS_linkage_name => {
+                return Ok(Some(attr.value()));
+            }
+            constants::DW_AT_name => {
+                fallback_name = Some(attr.value());
+            }
+            constants::DW_AT_abstract_origin | constants::DW_AT_specification => {
+                reference_target = Some(attr);
+            }
+            _ => {}
+        }
+    }
+
+    if fallback_name.is_some() {
+        return Ok(fallback_name);
+    }
+
+    if let Some(next) = reference_target {
+        // TODO: might be some caching shenanigans which require us to use the same technique
+        // as in symbolic-debuginfo's resolve_function_name.
+        return follow_function_ref(cache, next.value());
+    }
+
+    Ok(None)
 }
 
 fn find_cu_lang<R: gimli::Reader>(unit: &Unit<R>) -> Result<Option<u16>> {
