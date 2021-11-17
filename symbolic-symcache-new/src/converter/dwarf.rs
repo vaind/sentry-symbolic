@@ -16,7 +16,7 @@ use crate::ErrorSink;
 type Result<T, E = gimli::Error> = std::result::Result<T, E>;
 
 impl Converter {
-    fn offset_addr_range(&self, range: gimli::Range) -> Option<std::ops::Range<u32>> {
+    fn offset_addr_range(&self, range: gimli::Range) -> Option<std::ops::Range<RelativeAddress>> {
         let start = self.offset_addr(range.begin)?;
         let end = self.offset_addr(range.end)?;
         Some(start..end)
@@ -83,7 +83,8 @@ impl Converter {
         let sequences = parse_line_program(line_program)?;
 
         // TODO: figure out if we actually need to keep "sequences" separate?
-        let mut line_program_ranges = BTreeMap::new();
+        let mut line_program_ranges: BTreeMap<RelativeAddress, raw::SourceLocation> =
+            BTreeMap::new();
         for seq in sequences {
             // skip sequences beginning outside out addr range
             if self.offset_addr(seq.start).is_none() {
@@ -97,9 +98,9 @@ impl Converter {
                         addr,
                         raw::SourceLocation {
                             file_idx,
-                            line: row.line,
-                            function_idx: u32::MAX,
-                            inlined_into_idx: u32::MAX,
+                            line: LineNumber::try_from(row.line).ok(),
+                            function_idx: None,
+                            inlined_into_idx: None,
                         },
                     );
                 }
@@ -133,9 +134,10 @@ impl Converter {
                         }) => {
                             let caller_file = cu_cache.insert_file(self, call_file)?;
                             let caller_idx = cu_cache.insert_function(self, abstract_origin)?;
-                            (caller_file, call_line, caller_idx)
+                            let caller_line = LineNumber::try_from(call_line).ok();
+                            (caller_file, caller_line, caller_idx)
                         }
-                        None => (u32::MAX, 0, u32::MAX),
+                        None => (None, None, None),
                     };
                     for callee_source_location in sub_ranges(&mut line_program_ranges, range) {
                         let mut caller_source_location = callee_source_location.clone();
@@ -148,17 +150,19 @@ impl Converter {
                     }
                 } else {
                     let function_idx = cu_cache.insert_function(self, entry.offset())?;
-                    let entry_pc = self.functions[function_idx as usize].entry_pc;
+                    let entry_pc = function_idx.and_then(|idx| self.functions[idx.into()].entry_pc);
 
                     // insert a dummy source location in case this function's start is not covered by the line program
-                    line_program_ranges
-                        .entry(entry_pc)
-                        .or_insert(raw::SourceLocation {
-                            function_idx,
-                            line: 0,
-                            file_idx: u32::MAX,
-                            inlined_into_idx: u32::MAX,
-                        });
+                    if let Some(entry_key) = entry_pc {
+                        line_program_ranges
+                            .entry(entry_key)
+                            .or_insert(raw::SourceLocation {
+                                function_idx,
+                                line: None,
+                                file_idx: None,
+                                inlined_into_idx: None,
+                            });
+                    }
                     for source_location in sub_ranges(&mut line_program_ranges, range) {
                         source_location.function_idx = function_idx;
                     }
@@ -189,8 +193,8 @@ impl Converter {
 
 /// Returns an iterator of [`SourceLocation`]s that match the given [`gimli::Range`].
 fn sub_ranges(
-    ranges: &mut BTreeMap<u32, raw::SourceLocation>,
-    range: std::ops::Range<u32>,
+    ranges: &mut BTreeMap<RelativeAddress, raw::SourceLocation>,
+    range: std::ops::Range<RelativeAddress>,
 ) -> impl Iterator<Item = &mut raw::SourceLocation> {
     let first_after = ranges.range(range.end..).next();
     let upper_bound = if let Some((first_after_start, _)) = first_after {
@@ -207,8 +211,8 @@ fn sub_ranges(
 /// Only the *allocation* is being reused, not the actual data. The data is cleared on each CU.
 #[derive(Debug, Default)]
 struct ReusableCaches {
-    file_mapping: HashMap<u64, u32>,
-    function_mapping: HashMap<u64, u32>,
+    file_mapping: HashMap<u64, Index>,
+    function_mapping: HashMap<u64, Index>,
 }
 
 impl ReusableCaches {
@@ -226,7 +230,7 @@ struct PerCuCache<'dwarf, R: gimli::Reader> {
     lang: u8,
     header: LineProgramHeader<R>,
     reusable_cache: &'dwarf mut ReusableCaches,
-    comp_dir_idx: u32,
+    comp_dir_idx: Option<Index>,
 }
 
 impl<'dwarf, R> PerCuCache<'dwarf, R>
@@ -250,7 +254,7 @@ where
         let comp_dir_idx = if let Some(ref comp_dir) = unit.comp_dir {
             converter.insert_string(&comp_dir.to_string()?)
         } else {
-            u32::MAX
+            None
         };
 
         Ok(Self {
@@ -268,7 +272,11 @@ where
     /// Returns the index of the string in the global string table.
     // TODO: use this function somehow without messing up the borrow checker
     #[allow(dead_code)]
-    fn insert_string(&self, converter: &mut Converter, attr: AttributeValue<R>) -> Result<u32> {
+    fn insert_string(
+        &self,
+        converter: &mut Converter,
+        attr: AttributeValue<R>,
+    ) -> Result<Option<Index>> {
         let attr = self.dwarf.attr_string(self.unit, attr)?;
         let s = attr.to_string()?;
         Ok(converter.insert_string(&s))
@@ -281,54 +289,58 @@ where
         &mut self,
         converter: &mut Converter,
         die_offset: UnitOffset<R::Offset>,
-    ) -> Result<u32> {
+    ) -> Result<Option<Index>> {
         let die = self.unit.entry(die_offset)?;
         let FunctionInfo { name, entry_pc } = find_function_info(self, &die)?;
+
         let function_name_idx = match name {
             Some(name) => {
                 let attr = self.dwarf.attr_string(self.unit, name)?;
                 converter.insert_string(&attr.to_string()?)
             }
-            None => u32::MAX,
+            None => None,
+        };
+        let function_name_idx = if let Some(idx) = function_name_idx {
+            idx
+        } else {
+            return Ok(None);
         };
 
-        let entry_pc = entry_pc
-            .and_then(|epc| converter.offset_addr(epc))
-            .unwrap_or(u32::MAX);
-
-        let function_idx = converter
-            .functions
-            .insert_full(raw::Function {
-                name_idx: function_name_idx,
-                entry_pc,
-                lang: self.lang,
-            })
-            .0 as u32;
+        let entry_pc = entry_pc.and_then(|epc| converter.offset_addr(epc));
+        let (function_idx, _) = converter.functions.insert_full(raw::Function {
+            name_idx: function_name_idx,
+            entry_pc,
+            lang: self.lang,
+        });
+        // Assumes that func_idx != u32::MAX
+        let function_idx = Index::try_from(function_idx).unwrap();
 
         let entry = match self
             .reusable_cache
             .function_mapping
             .entry(die_offset.0.into_u64())
         {
-            Entry::Occupied(e) => return Ok(*e.get()),
+            Entry::Occupied(e) => return Ok(Some(*e.get())),
             Entry::Vacant(e) => e,
         };
         entry.insert(function_idx);
 
-        Ok(function_idx)
+        Ok(Some(function_idx))
     }
 
     /// Insert a file identified by the per-compilation unit file index into the global file table.
     ///
     /// Returns the index of the file in the global file table.
-    fn insert_file(&mut self, converter: &mut Converter, file_index: u64) -> Result<u32> {
+    fn insert_file(&mut self, converter: &mut Converter, file_index: u64) -> Result<Option<Index>> {
         let entry = match self.reusable_cache.file_mapping.entry(file_index) {
-            Entry::Occupied(e) => return Ok(*e.get()),
+            Entry::Occupied(e) => {
+                return Ok(Some(*e.get()));
+            }
             Entry::Vacant(e) => e,
         };
         let file = match self.header.file(file_index) {
             Some(file) => file,
-            None => return Ok(u32::MAX),
+            None => return Ok(None),
         };
 
         // The `directory_index == 0` is defined to be the `comp_dir`.
@@ -338,10 +350,10 @@ where
                 let idx = converter.insert_string(&directory.to_string()?);
                 idx
             } else {
-                u32::MAX
+                None
             }
         } else {
-            u32::MAX
+            None
         };
 
         let path_name = self.dwarf.attr_string(self.unit, file.path_name())?;
@@ -354,9 +366,12 @@ where
                 directory_idx,
                 path_name_idx,
             })
-            .0 as u32;
+            .0;
+        let file_idx = Index::try_from(file_idx).ok();
 
-        entry.insert(file_idx);
+        if let Some(idx) = file_idx {
+            entry.insert(idx);
+        }
 
         Ok(file_idx)
     }

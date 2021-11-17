@@ -74,7 +74,11 @@ impl<'data> File<'data> {
 
     /// Resolves the final path name fragment of this source file.
     pub fn path_name(&self) -> Result<&'data str> {
-        self.format.get_string(self.file.path_name_idx)
+        if let Some(idx) = self.file.path_name_idx {
+            self.format.get_string(idx)
+        } else {
+            Ok("")
+        }
     }
 
     /// Resolves and concatenates the full path based on its individual fragments.
@@ -158,11 +162,12 @@ impl SourceLocation<'_> {
 
     /// The function corresponding to the instruction.
     pub fn function(&self) -> Result<Option<Function<'_>>> {
-        let function_idx = self.source_location.function_idx;
-        if function_idx == u32::MAX {
+        let function_idx = if let Some(idx) = self.source_location.function_idx {
+            idx
+        } else {
             return Ok(None);
-        }
-        match self.format.functions.get(function_idx as usize) {
+        };
+        match self.format.functions.get::<usize>(function_idx.into()) {
             Some(function) => Ok(Some(Function {
                 format: self.format,
                 function,

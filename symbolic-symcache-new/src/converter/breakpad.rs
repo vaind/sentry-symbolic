@@ -61,7 +61,8 @@ impl Converter {
                 entry_pc,
                 raw::SourceLocation {
                     file_idx: None,
-                    line: 0,
+                    // TODO: this was 0, but None seems more fitting for a dummy than 0
+                    line: None,
                     function_idx: Some(function_idx),
                     inlined_into_idx: None,
                 },

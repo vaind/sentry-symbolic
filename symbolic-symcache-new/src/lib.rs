@@ -6,7 +6,7 @@ pub mod converter;
 pub mod error;
 pub mod format;
 
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use std::fmt;
 use std::num::NonZeroU32;
 
@@ -71,6 +71,20 @@ impl Into<usize> for Index {
     }
 }
 
+impl TryFrom<u32> for Index {
+    type Error = ();
+
+    fn try_from(other: u32) -> Result<Self, Self::Error> {
+        NonMaxU32::try_from(other).ok().map(Index).ok_or(())
+    }
+}
+
+impl Into<u32> for Index {
+    fn into(self) -> u32 {
+        u32::from(self.0)
+    }
+}
+
 impl fmt::Display for Index {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
@@ -90,6 +104,13 @@ impl TryFrom<u64> for LineNumber {
             .and_then(|x| NonZeroU32::try_from(x).ok())
             .map(LineNumber)
             .ok_or(())
+    }
+}
+impl TryFrom<u32> for LineNumber {
+    type Error = ();
+
+    fn try_from(other: u32) -> Result<Self, Self::Error> {
+        NonZeroU32::try_from(other).ok().map(LineNumber).ok_or(())
     }
 }
 

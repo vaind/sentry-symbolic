@@ -63,7 +63,7 @@ impl Converter {
     /// threshold or exceeds 32-bits.
     fn offset_addr(&self, addr: u64) -> Option<RelativeAddress> {
         addr.checked_sub(self.range_threshold)
-            .and_then(|a| (RelativeAddress::try_from(a).ok()))
+            .and_then(|a| RelativeAddress::try_from(a).ok())
     }
 
     /// Insert a string into this converter.
@@ -141,7 +141,7 @@ impl Converter {
         };
 
         let file = raw::File {
-            path_name_idx,
+            path_name_idx: Some(path_name_idx),
             directory_idx,
             comp_dir_idx,
         };

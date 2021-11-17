@@ -61,7 +61,7 @@ pub struct File {
     /// The optional directory prefix (reference to a [`String`]).
     pub directory_idx: Option<Index>,
     /// The file path (reference to a [`String`]).
-    pub path_name_idx: Index,
+    pub path_name_idx: Option<Index>,
 }
 
 /// A location in a source file, comprising a file, a line, a function, and
@@ -99,7 +99,7 @@ pub struct String {
 ///
 /// We only save the start address, the end is implicitly given
 /// by the next range's start.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct Range(pub RelativeAddress);
 
