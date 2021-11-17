@@ -92,6 +92,8 @@ impl<'data> File<'data> {
 
         let prefix = symbolic_common::join_path(comp_dir, directory);
         let full_path = symbolic_common::join_path(&prefix, path_name);
+        let full_path = symbolic_common::clean_path(&full_path).into_owned();
+
         Ok(if full_path.is_empty() {
             None
         } else {
