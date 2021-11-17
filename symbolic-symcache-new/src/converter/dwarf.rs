@@ -585,88 +585,88 @@ fn parse_line_program<R: gimli::Reader>(
 }
 
 // Adapted from https://github.com/gimli-rs/addr2line/blob/da4c21801be5ed60c7ee37193230ce872f69ff59/src/function.rs#L430-L520
-fn name_attr<R>(
-    attr: AttributeValue<R>,
-    unit: &Unit<R>,
-    dwarf: &Dwarf<R>,
-    recursion_limit: usize,
-) -> Result<Option<R>>
-where
-    R: gimli::Reader,
-{
-    if recursion_limit == 0 {
-        return Ok(None);
-    }
+// fn name_attr<R>(
+//     attr: AttributeValue<R>,
+//     unit: &Unit<R>,
+//     dwarf: &Dwarf<R>,
+//     recursion_limit: usize,
+// ) -> Result<Option<R>>
+// where
+//     R: gimli::Reader,
+// {
+//     if recursion_limit == 0 {
+//         return Ok(None);
+//     }
 
-    match attr {
-        AttributeValue::UnitRef(offset) => name_entry(unit, offset, dwarf, recursion_limit),
-        // TODO:
-        // AttributeValue::DebugInfoRef(dr) => {
-        //     let res_unit = dwarf.find_unit(dr)?;
-        //     name_entry(
-        //         &res_unit.dw_unit,
-        //         gimli::UnitOffset(dr.0 - res_unit.offset.0),
-        //         dwarf,
-        //         recursion_limit,
-        //     )
-        // }
-        // AttributeValue::DebugInfoRefSup(dr) => {
-        //     if let Some(sup_dwarf) = dwarf.sup.as_ref() {
-        //         let res_unit = sup_dwarf.find_unit(dr)?;
-        //         name_entry(
-        //             &res_unit.dw_unit,
-        //             gimli::UnitOffset(dr.0 - res_unit.offset.0),
-        //             sup_dwarf,
-        //             recursion_limit,
-        //         )
-        //     } else {
-        //         Ok(None)
-        //     }
-        // }
-        _ => Ok(None),
-    }
-}
+//     match attr {
+//         AttributeValue::UnitRef(offset) => name_entry(unit, offset, dwarf, recursion_limit),
+//         // TODO:
+//         // AttributeValue::DebugInfoRef(dr) => {
+//         //     let res_unit = dwarf.find_unit(dr)?;
+//         //     name_entry(
+//         //         &res_unit.dw_unit,
+//         //         gimli::UnitOffset(dr.0 - res_unit.offset.0),
+//         //         dwarf,
+//         //         recursion_limit,
+//         //     )
+//         // }
+//         // AttributeValue::DebugInfoRefSup(dr) => {
+//         //     if let Some(sup_dwarf) = dwarf.sup.as_ref() {
+//         //         let res_unit = sup_dwarf.find_unit(dr)?;
+//         //         name_entry(
+//         //             &res_unit.dw_unit,
+//         //             gimli::UnitOffset(dr.0 - res_unit.offset.0),
+//         //             sup_dwarf,
+//         //             recursion_limit,
+//         //         )
+//         //     } else {
+//         //         Ok(None)
+//         //     }
+//         // }
+//         _ => Ok(None),
+//     }
+// }
 
-fn name_entry<R>(
-    unit: &Unit<R>,
-    offset: UnitOffset<R::Offset>,
-    dwarf: &Dwarf<R>,
-    recursion_limit: usize,
-) -> Result<Option<R>>
-where
-    R: gimli::Reader,
-{
-    let entry = unit.entry(offset)?;
+// fn name_entry<R>(
+//     unit: &Unit<R>,
+//     offset: UnitOffset<R::Offset>,
+//     dwarf: &Dwarf<R>,
+//     recursion_limit: usize,
+// ) -> Result<Option<R>>
+// where
+//     R: gimli::Reader,
+// {
+//     let entry = unit.entry(offset)?;
 
-    let mut name = None;
+//     let mut name = None;
 
-    let mut attrs = entry.attrs();
-    while let Some(attr) = attrs.next()? {
-        match attr.name() {
-            constants::DW_AT_linkage_name | constants::DW_AT_MIPS_linkage_name => {
-                if let Ok(val) = dwarf.attr_string(unit, attr.value()) {
-                    return Ok(Some(val));
-                }
-            }
-            constants::DW_AT_name => {
-                if let Ok(val) = dwarf.attr_string(unit, attr.value()) {
-                    name = Some(val);
-                }
-            }
-            constants::DW_AT_abstract_origin | constants::DW_AT_specification => {
-                next = Some(attr.value());
-            }
-            _ => {}
-        }
-    }
+//     let mut attrs = entry.attrs();
+//     while let Some(attr) = attrs.next()? {
+//         match attr.name() {
+//             constants::DW_AT_linkage_name | constants::DW_AT_MIPS_linkage_name => {
+//                 if let Ok(val) = dwarf.attr_string(unit, attr.value()) {
+//                     return Ok(Some(val));
+//                 }
+//             }
+//             constants::DW_AT_name => {
+//                 if let Ok(val) = dwarf.attr_string(unit, attr.value()) {
+//                     name = Some(val);
+//                 }
+//             }
+//             constants::DW_AT_abstract_origin | constants::DW_AT_specification => {
+//                 next = Some(attr.value());
+//             }
+//             _ => {}
+//         }
+//     }
 
-    if name.is_some() {
-        return Ok(name);
-    }
+//     if name.is_some() {
+//         return Ok(name);
+//     }
 
-    if let Some(next) = next {
-        return name_attr(next, unit, dwarf, recursion_limit - 1);
-    }
+//     if let Some(next) = next {
+//         return name_attr(next, unit, dwarf, recursion_limit - 1);
+//     }
 
-    Ok(None)
-}
+//     Ok(None)
+// }
