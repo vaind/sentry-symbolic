@@ -12,10 +12,31 @@ impl Format<'_> {
         let source_location_start = self.source_locations.len() - self.ranges.len();
         let relative_addr = self.offset_addr(addr);
         let source_location_idx = relative_addr.and_then(|relative_addr| {
+            // Ranges are sorted in ascending order, so consider the two cases:
+            // Address is out of bounds (first simple test assert)
+            // Ranges: [4344, 4336]      Desired address: [4335]
+            // binary_search_by_key returns Err(2) because 4335 can be inserted after 4336, so if
+            // the index is close to the end of the list it is above and out of bounds
+            //
+            // Address is between bounds (second simple test assert)
+            // Ranges: [4344, 4336]      Desired address: [4338]
+            // binary_search_by_key returns Err(1) because 4338 can be inserted after 4344, so just
+            // add 1 to the start to get the correct fn of interest: 4336 at index 1
+            //
+            //
+            // Something to consider: When does 4344 end? Previously there was an additional range
+            // with addr = u32::MAX which is currently not being pushed. Is that needed to indicate
+            // the end of the final range?
             match self.ranges.binary_search_by_key(&relative_addr, |r| r.0) {
-                Ok(idx) => Some(Index::try_from(source_location_start + idx).unwrap()),
-                Err(idx) if idx == 0 => None,
-                Err(idx) => Some(Index::try_from(source_location_start + idx - 1).unwrap()),
+                Ok(idx) => {
+                    Some(Index::try_from(source_location_start + idx).unwrap())
+                }
+                Err(idx) if idx == self.ranges.len() => {
+                    None
+                }
+                Err(idx) => {
+                    Some(Index::try_from(source_location_start + idx).unwrap())
+                }
             }
         });
         SourceLocationIter {
