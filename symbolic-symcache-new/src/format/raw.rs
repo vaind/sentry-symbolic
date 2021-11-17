@@ -3,8 +3,6 @@
 //! TODO: actually write some docs ;-)
 
 /// The magic file preamble as individual bytes.
-use crate::{Index, LineNumber, RelativeAddress};
-
 const SYMCACHE_MAGIC_BYTES: [u8; 4] = *b"SYMC";
 
 /// The magic file preamble to identify SymCache files.
@@ -36,8 +34,6 @@ pub struct Header {
     pub num_ranges: u32,
     /// Total number of bytes used for string data.
     pub string_bytes: u32,
-
-    pub range_threshold: u64,
 }
 
 /// Serialized Function metadata in the SymCache.
@@ -45,9 +41,9 @@ pub struct Header {
 #[repr(C)]
 pub struct Function {
     /// The functions name (reference to a [`String`]).
-    pub name_idx: Index,
+    pub name_idx: u32,
     /// The first address covered by this function.
-    pub entry_pc: Option<RelativeAddress>,
+    pub entry_pc: u32,
     /// The language of the function.
     pub lang: u8,
 }
@@ -57,11 +53,11 @@ pub struct Function {
 #[repr(C)]
 pub struct File {
     /// The optional compilation directory prefix (reference to a [`String`]).
-    pub comp_dir_idx: Option<Index>,
+    pub comp_dir_idx: u32,
     /// The optional directory prefix (reference to a [`String`]).
-    pub directory_idx: Option<Index>,
+    pub directory_idx: u32,
     /// The file path (reference to a [`String`]).
-    pub path_name_idx: Option<Index>,
+    pub path_name_idx: u32,
 }
 
 /// A location in a source file, comprising a file, a line, a function, and
@@ -75,14 +71,14 @@ pub struct File {
 #[repr(C)]
 pub struct SourceLocation {
     /// The optional source file (reference to a [`File`]).
-    pub file_idx: Option<Index>,
+    pub file_idx: u32,
     /// The line number.
-    pub line: Option<LineNumber>,
+    pub line: u32,
     /// The function (reference to a [`Function`]).
-    pub function_idx: Option<Index>,
+    pub function_idx: u32,
     /// The caller source location in case this location was inlined
     /// (reference to another [`SourceLocation`]).
-    pub inlined_into_idx: Option<Index>,
+    pub inlined_into_idx: u32,
 }
 
 /// Serialized String in the SymCache.
@@ -101,7 +97,7 @@ pub struct String {
 /// by the next range's start.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
-pub struct Range(pub RelativeAddress);
+pub struct Range(pub u32);
 
 /// Returns the amount left to add to the remainder to get 8 if
 /// `to_align` isn't a multiple of 8.

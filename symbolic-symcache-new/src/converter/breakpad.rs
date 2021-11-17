@@ -29,12 +29,7 @@ impl Converter {
         // gather files
         for file in breakpad.file_records() {
             let file_record = file?;
-            let file_idx = if let Some(idx) = self.insert_file(file_record.name, None, None) {
-                idx
-            } else {
-                // raise error
-                continue;
-            };
+            let file_idx = self.insert_file(file_record.name, None, None);
             file_map.insert(file_record.id, file_idx);
         }
 
@@ -42,45 +37,30 @@ impl Converter {
         for function in breakpad.func_records() {
             let func_record = function?;
 
-            let entry_pc = match self.offset_addr(func_record.address) {
-                Some(addr) => addr,
-                None => continue,
-            };
-
-            let function_idx = if let Some(idx) =
-                self.insert_function(func_record.name, Some(entry_pc), Language::Unknown)
-            {
-                idx
-            } else {
-                // raise error
-                continue;
-            };
+            let entry_pc = self.offset_addr(func_record.address).unwrap_or(u32::MAX);
+            let function_idx = self.insert_function(func_record.name, entry_pc, Language::Unknown);
 
             // insert a dummy source location in case we don't have any line records
             self.ranges.insert(
                 entry_pc,
                 raw::SourceLocation {
-                    file_idx: None,
-                    // TODO: this was 0, but None seems more fitting for a dummy than 0
-                    line: None,
-                    function_idx: Some(function_idx),
-                    inlined_into_idx: None,
+                    file_idx: u32::MAX,
+                    line: 0,
+                    function_idx,
+                    inlined_into_idx: u32::MAX,
                 },
             );
 
             for line in func_record.lines() {
                 let line_record = line?;
-                let address = match self.offset_addr(line_record.address) {
-                    Some(address) => address,
-                    None => continue,
-                };
+                let address = self.offset_addr(line_record.address).unwrap_or(u32::MAX);
 
                 let source_location = raw::SourceLocation {
-                    file_idx: Some(file_map[&line_record.file_id]),
+                    file_idx: file_map[&line_record.file_id],
                     // TODO: what about line numbers > u32::MAX?
-                    line: LineNumber::try_from(line_record.line).ok(),
-                    function_idx: Some(function_idx),
-                    inlined_into_idx: None,
+                    line: line_record.line as u32,
+                    function_idx,
+                    inlined_into_idx: u32::MAX,
                 };
 
                 self.ranges.insert(address, source_location);
