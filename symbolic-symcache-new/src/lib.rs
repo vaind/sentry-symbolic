@@ -32,7 +32,7 @@ impl TryFrom<u64> for RelativeAddress {
         u32::try_from(other)
             .ok()
             .and_then(|x| NonMaxU32::try_from(x).ok())
-            .map(|x| RelativeAddress(x))
+            .map(RelativeAddress)
             .ok_or(())
     }
 }
@@ -60,7 +60,7 @@ impl TryFrom<usize> for Index {
         u32::try_from(other)
             .ok()
             .and_then(|x| NonMaxU32::try_from(x).ok())
-            .map(|x| Index(x))
+            .map(Index)
             .ok_or(())
     }
 }
@@ -88,7 +88,7 @@ impl TryFrom<u64> for LineNumber {
         u32::try_from(other)
             .ok()
             .and_then(|x| NonZeroU32::try_from(x).ok())
-            .map(|x| LineNumber(x))
+            .map(LineNumber)
             .ok_or(())
     }
 }

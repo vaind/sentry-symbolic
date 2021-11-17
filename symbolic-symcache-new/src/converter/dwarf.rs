@@ -512,11 +512,8 @@ fn find_cu_lang<R: gimli::Reader>(unit: &Unit<R>) -> Result<Option<u16>> {
         let mut attrs = root.attrs();
 
         while let Some(attr) = attrs.next()? {
-            match attr.name() {
-                constants::DW_AT_language => {
-                    return Ok(attr.u16_value());
-                }
-                _ => {}
+            if attr.name() == constants::DW_AT_language {
+                return Ok(attr.u16_value());
             }
         }
     }
