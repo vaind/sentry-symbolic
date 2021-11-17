@@ -4,6 +4,7 @@ use indexmap::{set::IndexSet, IndexMap};
 use std::collections::BTreeMap;
 
 mod breakpad;
+mod debug_session;
 mod dwarf;
 mod serialize;
 
