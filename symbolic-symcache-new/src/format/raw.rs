@@ -95,7 +95,7 @@ pub struct String {
 ///
 /// We only save the start address, the end is implicitly given
 /// by the next range's start.
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct Range(pub u32);
 

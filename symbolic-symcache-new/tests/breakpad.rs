@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::convert::TryFrom;
 use std::fs;
 
 use symbolic_debuginfo::breakpad::BreakpadObject;
@@ -20,7 +19,7 @@ fn test_macos() {
         ResolvedFrame {
             function: "google_breakpad::MinidumpFileWriter::Copy(unsigned int, void const*, long)".to_string(),
             file: "/Users/travis/build/getsentry/breakpad-tools/macos/../deps/breakpad/src/client/minidump_file_writer.cc".to_string(),
-            line: LineNumber::try_from(312_u32).ok(),
+            line: 312
         }
     );
 }
@@ -61,7 +60,7 @@ fn test_macos_all() {
                 } = &lookup_result[0];
                 assert_eq!(function, func.name);
                 assert_eq!(file, files[&line_rec.file_id]);
-                assert_eq!(*line, LineNumber::try_from(line_rec.line as u32).ok());
+                assert_eq!(*line, line_rec.line as u32);
             }
         }
     }
@@ -79,7 +78,7 @@ fn test_windows() {
         ResolvedFrame {
             function: "google_breakpad::ExceptionHandler::WriteMinidumpWithException(unsigned long,_EXCEPTION_POINTERS *,MDRawAssertionInfo *)".to_string(),
             file: "c:\\projects\\breakpad-tools\\deps\\breakpad\\src\\client\\windows\\handler\\exception_handler.cc".to_string(),
-            line: LineNumber::try_from(846_u32).ok()
+            line: 846
         }
     );
 }

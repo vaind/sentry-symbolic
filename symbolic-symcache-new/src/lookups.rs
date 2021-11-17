@@ -6,7 +6,7 @@ use symbolic_debuginfo::breakpad::BreakpadObject;
 use symbolic_symcache::SymCache;
 
 use crate::converter::Converter;
-use crate::{format, LineNumber};
+use crate::format;
 
 const SHF_EXECINSTR: u64 = 0x4;
 
@@ -31,7 +31,7 @@ pub fn get_executable_range(object: &object::File) -> Range<u64> {
 pub struct ResolvedFrame {
     pub function: String,
     pub file: String,
-    pub line: Option<LineNumber>,
+    pub line: u32,
 }
 
 impl From<format::SourceLocation<'_>> for ResolvedFrame {
@@ -39,14 +39,14 @@ impl From<format::SourceLocation<'_>> for ResolvedFrame {
         let function = source_location
             .function()
             .unwrap()
-            .and_then(|function| function.name().ok())
-            .unwrap_or_default()
+            .and_then(|function| function.name().unwrap())
+            .unwrap_or("")
             .to_owned();
         let file = source_location
             .file()
             .unwrap()
-            .and_then(|file| file.full_path())
-            .unwrap_or_default();
+            .and_then(|file| file.full_path().unwrap())
+            .unwrap_or_else(String::new);
         let line = source_location.line();
 
         Self {
@@ -61,21 +61,16 @@ impl<R: gimli::Reader> From<addr2line::Frame<'_, R>> for ResolvedFrame {
     fn from(frame: addr2line::Frame<'_, R>) -> Self {
         // TODO: return just the name with an empty file/line if there is no location
         let (fun, loc) = (frame.function, frame.location.as_ref());
-
         let function = fun
             .map(|f| f.raw_name().unwrap().to_string())
             .unwrap_or_default();
-
         // strip leading `./` to be in-line with symcache output
         let file = loc
             .and_then(|loc| loc.file)
             .map(|f| f.strip_prefix("./").unwrap_or(f))
             .unwrap_or_default()
             .to_string();
-        let line = loc
-            .and_then(|loc| loc.line)
-            .and_then(|line_num| LineNumber::try_from(line_num).ok());
-
+        let line = loc.and_then(|loc| loc.line).unwrap_or_default();
         Self {
             function,
             file,
@@ -136,7 +131,7 @@ pub fn lookup_symcache(symcache: &SymCache, addr: u64) -> Result<Vec<ResolvedFra
 
         let function = frame.function_name().into_string();
         let file = frame.abs_path();
-        let line = LineNumber::try_from(frame.line()).ok();
+        let line = frame.line();
 
         result.push(ResolvedFrame {
             function,
@@ -195,7 +190,7 @@ pub fn create_new_symcache_dwarf(data: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn create_new_symcache_breakpad(data: &[u8]) -> Result<Vec<u8>> {
-    let breakpad = BreakpadObject::parse(data)?;
+    let breakpad = BreakpadObject::parse(&data)?;
 
     let mut converter = Converter::default();
     converter.process_breakpad(&breakpad, |_| {});

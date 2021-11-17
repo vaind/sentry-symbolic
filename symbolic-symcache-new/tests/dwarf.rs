@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::fs;
 
 use symbolic_symcache_new::lookups::{
@@ -21,7 +20,7 @@ fn works_on_simple() {
         &[ResolvedFrame {
             function: "simple_fn".into(),
             file: "/root-comp-dir/simple.rs".into(),
-            line: LineNumber::try_from(5_u32).ok()
+            line: 5
         }]
     );
 
@@ -40,15 +39,14 @@ fn works_on_inlined() {
             ResolvedFrame {
                 function: "_ZN7inlined10inlined_fn17haa7a5b60e644bff9E".into(),
                 file: "/root-comp-dir/inlined.rs".into(),
-                line: LineNumber::try_from(10_u32).ok()
+                line: 10
             },
             ResolvedFrame {
                 function: "caller_fn".into(),
                 file: "/root-comp-dir/inlined.rs".into(),
-                line: LineNumber::try_from(3_u32).ok()
+                line: 3
             }
-        ]
-    );
+        ]    );
 
     // TODO: assert that we can resolve non-DWARF symbols
 }

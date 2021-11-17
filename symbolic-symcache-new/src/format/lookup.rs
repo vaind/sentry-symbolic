@@ -159,12 +159,11 @@ impl SourceLocation<'_> {
 
     /// The function corresponding to the instruction.
     pub fn function(&self) -> Result<Option<Function<'_>>> {
-        let function_idx = if let Some(idx) = self.source_location.function_idx {
-            idx
-        } else {
+        let function_idx = self.source_location.function_idx;
+        if function_idx == u32::MAX {
             return Ok(None);
-        };
-        match self.format.functions.get::<usize>(function_idx.into()) {
+        }
+        match self.format.functions.get(function_idx as usize) {
             Some(function) => Ok(Some(Function {
                 format: self.format,
                 function,
