@@ -2,7 +2,6 @@
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
-use std::num::NonZeroU32;
 
 use indexmap::{set::IndexSet, IndexMap};
 
@@ -97,11 +96,11 @@ impl Converter {
     /// If the `SourceLocation` was already present, it is not added again. The returned `u32`
     /// is the `SourceLocation`'s index in insertion order.
     fn insert_source_location(&mut self, source_location: raw::SourceLocation) -> Option<Index> {
-        if let Some(existing_idx) = self.strings.get_index_of(&source_location) {
+        if let Some(existing_idx) = self.source_locations.get_index_of(&source_location) {
             return Some(Index::try_from(existing_idx).unwrap());
         }
 
-        if self.strings.len() >= u32::MAX as usize {
+        if self.source_locations.len() >= u32::MAX as usize {
             return None;
         }
 
