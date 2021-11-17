@@ -99,7 +99,7 @@ pub struct SymCacheError {
 impl SymCacheError {
     /// Creates a new SymCache error from a known kind of error as well as an
     /// arbitrary error payload.
-    pub(crate) fn new<E>(kind: SymCacheErrorKind, source: E) -> Self
+    pub fn new<E>(kind: SymCacheErrorKind, source: E) -> Self
     where
         E: Into<Box<dyn Error + Send + Sync>>,
     {

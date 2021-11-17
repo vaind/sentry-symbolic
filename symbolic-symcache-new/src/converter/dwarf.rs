@@ -151,14 +151,14 @@ impl Converter {
                     let entry_pc = self.functions[function_idx as usize].entry_pc;
 
                     // insert a dummy source location in case this function's start is not covered by the line program
-                    line_program_ranges
-                        .entry(entry_pc)
-                        .or_insert(raw::SourceLocation {
-                            function_idx,
-                            line: 0,
-                            file_idx: u32::MAX,
-                            inlined_into_idx: u32::MAX,
-                        });
+                    // line_program_ranges
+                    //     .entry(entry_pc)
+                    //     .or_insert(raw::SourceLocation {
+                    //         function_idx,
+                    //         line: 0,
+                    //         file_idx: u32::MAX,
+                    //         inlined_into_idx: u32::MAX,
+                    //     });
                     for source_location in sub_ranges(&mut line_program_ranges, range) {
                         source_location.function_idx = function_idx;
                     }

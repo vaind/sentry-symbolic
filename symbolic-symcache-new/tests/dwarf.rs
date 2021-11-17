@@ -1,8 +1,8 @@
 use std::fs;
 
 use symbolic_symcache_new::lookups::{
-    create_addr2line, create_new_symcache_dwarf, get_executable_range, lookup_addr2line,
-    lookup_new_symcache, resolve_lookup, ResolvedFrame,
+    create_addr2line, create_new_symcache_abstraction, create_new_symcache_dwarf,
+    get_executable_range, lookup_addr2line, lookup_new_symcache, resolve_lookup, ResolvedFrame,
 };
 use symbolic_symcache_new::*;
 use symbolic_testutils::fixture;
@@ -46,7 +46,64 @@ fn works_on_inlined() {
                 file: "/root-comp-dir/inlined.rs".into(),
                 line: 3
             }
-        ]    );
+        ]
+    );
+
+    // TODO: assert that we can resolve non-DWARF symbols
+}
+
+#[test]
+fn works_on_inlined_with_abstraction() {
+    let buf = fs::read(fixture("inlining/inlined.debug")).unwrap();
+    let symcache_buf = create_new_symcache_abstraction(&buf).unwrap();
+    let symcache = Format::parse(&symcache_buf).unwrap();
+
+    assert_eq!(
+        &resolve_lookup(&symcache, 0x10f2),
+        &[
+            ResolvedFrame {
+                function: "_ZN7inlined10inlined_fn17haa7a5b60e644bff9E".into(),
+                file: "/root-comp-dir/inlined.rs".into(),
+                line: 10
+            },
+            ResolvedFrame {
+                function: "caller_fn".into(),
+                file: "/root-comp-dir/inlined.rs".into(),
+                line: 3
+            }
+        ]
+    );
+
+    // TODO: assert that we can resolve non-DWARF symbols
+}
+
+#[test]
+fn works_on_two_inlined_with_abstraction() {
+    let buf = fs::read(fixture("inlining/two_inlined.debug")).unwrap();
+    let symcache_buf = create_new_symcache_abstraction(&buf).unwrap();
+
+    let symcache = Format::parse(&symcache_buf).unwrap();
+
+    assert_eq!(
+        &resolve_lookup(&symcache, 0x10f2),
+        &[
+            ResolvedFrame {
+                function: "_ZN11two_inlined16second_inline_fn17h822ad75fa113b071E".into(),
+                file: "/root-comp-dir/two_inlined.rs".into(),
+                line: 17
+            },
+            ResolvedFrame {
+                function: "_ZN11two_inlined10inlined_fn17hbf04a26b10bab77fE".into(),
+                file: "/root-comp-dir/two_inlined.rs".into(),
+                line: 10
+            },
+            ResolvedFrame {
+                function: "caller_fn".into(),
+                file: "/root-comp-dir/two_inlined.rs".into(),
+                line: 3
+            },
+        ]
+    );
 
     // TODO: assert that we can resolve non-DWARF symbols
 }

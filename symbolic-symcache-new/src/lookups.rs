@@ -189,8 +189,20 @@ pub fn create_new_symcache_dwarf(data: &[u8]) -> Result<Vec<u8>> {
     })
 }
 
+pub fn create_new_symcache_abstraction(data: &[u8]) -> Result<Vec<u8>> {
+    let object = symbolic_debuginfo::Object::parse(data)?;
+
+    let mut converter = Converter::new();
+    converter.process_object(&object)?;
+
+    let mut buf = vec![];
+    converter.serialize(&mut buf, |err| panic!("{}", err))?;
+
+    Ok(buf)
+}
+
 pub fn create_new_symcache_breakpad(data: &[u8]) -> Result<Vec<u8>> {
-    let breakpad = BreakpadObject::parse(&data)?;
+    let breakpad = BreakpadObject::parse(data)?;
 
     let mut converter = Converter::default();
     converter.process_breakpad(&breakpad, |_| {});

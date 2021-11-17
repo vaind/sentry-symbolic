@@ -4,8 +4,8 @@ use indexmap::{set::IndexSet, IndexMap};
 use std::collections::BTreeMap;
 
 mod breakpad;
-mod debug_session;
 mod dwarf;
+mod object;
 mod serialize;
 
 use symbolic_common::Language;
