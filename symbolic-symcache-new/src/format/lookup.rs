@@ -6,8 +6,22 @@ impl Format<'_> {
     /// This always returns an iterator, however that iterator might be empty in case no [`SourceLocation`]
     /// was found for the given `addr`.
     pub fn lookup(&self, addr: u64) -> SourceLocationIter<'_> {
+        use std::convert::TryFrom;
+        let addr = match addr
+            .checked_sub(self.range_offset)
+            .and_then(|r| u32::try_from(r).ok())
+        {
+            Some(addr) => addr,
+            None => {
+                return SourceLocationIter {
+                    format: self,
+                    source_location_idx: u32::MAX,
+                }
+            }
+        };
+
         let source_location_start = (self.source_locations.len() - self.ranges.len()) as u32;
-        let source_location_idx = match self.ranges.binary_search_by_key(&(addr as u32), |r| r.0) {
+        let source_location_idx = match self.ranges.binary_search_by_key(&addr, |r| r.0) {
             Ok(idx) => source_location_start + idx as u32,
             Err(idx) if idx == 0 => u32::MAX,
             Err(idx) => source_location_start + idx as u32 - 1,

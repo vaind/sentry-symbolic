@@ -35,7 +35,7 @@ impl Converter {
             num_source_locations,
             num_ranges,
             string_bytes,
-            range_threshold: self.range_threshold,
+            range_offset: self.range_threshold,
         };
 
         writer.write(&[header])?;

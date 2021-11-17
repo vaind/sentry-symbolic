@@ -19,7 +19,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// via the [`Format::lookup`] method.
 #[derive(Debug)]
 pub struct Format<'data> {
-    range_threshold: u64,
+    range_offset: u64,
     strings: &'data [raw::String],
     files: &'data [raw::File],
     functions: &'data [raw::Function],
@@ -130,7 +130,7 @@ impl<'data> Format<'data> {
         };
 
         Ok(Format {
-            range_threshold: header.range_threshold,
+            range_offset: header.range_offset,
             strings,
             files,
             functions,

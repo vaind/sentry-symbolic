@@ -22,6 +22,10 @@ pub struct Header {
     pub magic: u32,
     /// The SymCache Format Version.
     pub version: u32,
+
+    /// The offset with which all ranges have been offset in the SymCache.
+    pub range_offset: u64,
+
     /// Number of included [`String`]s.
     pub num_strings: u32,
     /// Number of included [`File`]s.
