@@ -203,11 +203,7 @@ fn sub_ranges(
         Bound::Unbounded
     };
     let lower_bound = Bound::Included(range.start);
-
-    // !!! TODO: if you use RelativeAddress as a key the entries are sorted in descending order.
-    ranges
-        .range_mut((upper_bound, lower_bound))
-        .map(|(_, loc)| loc)
+    ranges.range_mut((lower_bound, upper_bound)).map(|(_, v)| v)
 }
 
 /// A collection of caches that are being re-used across compilation units.
