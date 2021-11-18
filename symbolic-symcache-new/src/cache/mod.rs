@@ -18,7 +18,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// This can be parsed from a binary buffer via [`Format::parse`], and lookups on it can be performed
 /// via the [`Format::lookup`] method.
 #[derive(Debug)]
-pub struct Format<'data> {
+pub struct SymCache<'data> {
     range_offset: u64,
     strings: &'data [raw::String],
     files: &'data [raw::File],
@@ -28,7 +28,7 @@ pub struct Format<'data> {
     string_bytes: &'data [u8],
 }
 
-impl<'data> Format<'data> {
+impl<'data> SymCache<'data> {
     /// Parse the SymCache binary format into a convenient type that allows safe access and allows
     /// fast lookups.
     ///
@@ -129,7 +129,7 @@ impl<'data> Format<'data> {
                 as *const [u8])
         };
 
-        Ok(Format {
+        Ok(SymCache {
             range_offset: header.range_offset,
             strings,
             files,

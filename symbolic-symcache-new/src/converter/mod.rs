@@ -10,7 +10,7 @@ mod serialize;
 
 use symbolic_common::Language;
 
-use crate::format::raw;
+use crate::cache::raw;
 pub use serialize::*;
 
 /// The SymCache Converter.

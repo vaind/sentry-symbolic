@@ -1,6 +1,6 @@
-use super::{raw, Error, Format, Result};
+use super::{raw, Error, SymCache, Result};
 
-impl Format<'_> {
+impl SymCache<'_> {
     /// Looks up an instruction address in the SymCache, yielding an iterator of [`SourceLocation`]s.
     ///
     /// This always returns an iterator, however that iterator might be empty in case no [`SourceLocation`]
@@ -64,7 +64,7 @@ impl Format<'_> {
 ///   - path_name: pthread.h
 #[derive(Debug)]
 pub struct File<'data> {
-    format: &'data Format<'data>,
+    format: &'data SymCache<'data>,
     file: &'data raw::File,
 }
 
@@ -105,7 +105,7 @@ impl<'data> File<'data> {
 /// A Function definition as included in the SymCache.
 #[derive(Debug)]
 pub struct Function<'data> {
-    format: &'data Format<'data>,
+    format: &'data SymCache<'data>,
     function: &'data raw::Function,
 }
 
@@ -119,7 +119,7 @@ impl<'data> Function<'data> {
 /// An Iterator that yields [`SourceLocation`]s, representing an inlining hierarchy.
 #[derive(Debug)]
 pub struct SourceLocationIter<'data> {
-    format: &'data Format<'data>,
+    format: &'data SymCache<'data>,
     source_location_idx: u32,
 }
 
@@ -156,7 +156,7 @@ impl<'data> SourceLocationIter<'data> {
 /// an instruction in the executable.
 #[derive(Debug)]
 pub struct SourceLocation<'data> {
-    format: &'data Format<'data>,
+    format: &'data SymCache<'data>,
     source_location: &'data raw::SourceLocation,
 }
 

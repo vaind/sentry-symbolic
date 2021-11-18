@@ -3,7 +3,7 @@ use std::io::Write;
 use thiserror::Error;
 
 use super::*;
-use crate::format::raw;
+use crate::cache::raw;
 use crate::ErrorSink;
 
 impl Converter {

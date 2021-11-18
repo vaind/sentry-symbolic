@@ -5,8 +5,8 @@ use object::{Object, ObjectSection};
 use symbolic_debuginfo::breakpad::BreakpadObject;
 use symbolic_symcache::SymCache;
 
+use crate::cache;
 use crate::converter::Converter;
-use crate::format;
 
 const SHF_EXECINSTR: u64 = 0x4;
 
@@ -34,8 +34,8 @@ pub struct ResolvedFrame {
     pub line: u32,
 }
 
-impl From<format::SourceLocation<'_>> for ResolvedFrame {
-    fn from(source_location: format::SourceLocation<'_>) -> Self {
+impl From<cache::SourceLocation<'_>> for ResolvedFrame {
+    fn from(source_location: cache::SourceLocation<'_>) -> Self {
         let function = source_location
             .function()
             .unwrap()
@@ -79,7 +79,7 @@ impl<R: gimli::Reader> From<addr2line::Frame<'_, R>> for ResolvedFrame {
     }
 }
 
-pub fn resolve_lookup(symcache: &format::Format<'_>, addr: u64) -> Vec<ResolvedFrame> {
+pub fn resolve_lookup(symcache: &cache::SymCache<'_>, addr: u64) -> Vec<ResolvedFrame> {
     let mut lookup = symcache.lookup(addr);
     let mut resolved = vec![];
 
@@ -213,10 +213,10 @@ pub fn create_new_symcache_breakpad(data: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn lookup_new_symcache(
-    format: &crate::format::Format,
+    cache: &crate::cache::SymCache,
     addr: u64,
 ) -> Result<Vec<ResolvedFrame>, Box<dyn std::error::Error>> {
-    let mut frames = format.lookup(addr);
+    let mut frames = cache.lookup(addr);
 
     let mut result = vec![];
 

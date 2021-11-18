@@ -10,7 +10,7 @@ use gimli::{
 };
 
 use super::*;
-use crate::format::raw;
+use crate::cache::raw;
 use crate::ErrorSink;
 
 type Result<T, E = gimli::Error> = std::result::Result<T, E>;
