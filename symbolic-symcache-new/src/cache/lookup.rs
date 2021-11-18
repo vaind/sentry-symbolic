@@ -14,7 +14,7 @@ impl SymCache<'_> {
             Some(addr) => addr,
             None => {
                 return SourceLocationIter {
-                    format: self,
+                    cache: self,
                     source_location_idx: u32::MAX,
                 }
             }
@@ -27,7 +27,7 @@ impl SymCache<'_> {
             Err(idx) => source_location_start + idx as u32 - 1,
         };
         SourceLocationIter {
-            format: self,
+            cache: self,
             source_location_idx,
         }
     }
@@ -37,7 +37,7 @@ impl SymCache<'_> {
             return Ok(None);
         }
         match self.files.get(file_idx as usize) {
-            Some(file) => Ok(Some(File { format: self, file })),
+            Some(file) => Ok(Some(File { cache: self, file })),
             None => Err(Error::InvalidFileReference(file_idx)),
         }
     }
@@ -64,24 +64,24 @@ impl SymCache<'_> {
 ///   - path_name: pthread.h
 #[derive(Debug)]
 pub struct File<'data> {
-    format: &'data SymCache<'data>,
+    cache: &'data SymCache<'data>,
     file: &'data raw::File,
 }
 
 impl<'data> File<'data> {
     /// Resolves the compilation directory of this source file.
     pub fn comp_dir(&self) -> Result<Option<&'data str>> {
-        self.format.get_string(self.file.comp_dir_idx)
+        self.cache.get_string(self.file.comp_dir_idx)
     }
 
     /// Resolves the parent directory of this source file.
     pub fn directory(&self) -> Result<Option<&'data str>> {
-        self.format.get_string(self.file.directory_idx)
+        self.cache.get_string(self.file.directory_idx)
     }
 
     /// Resolves the final path name fragment of this source file.
     pub fn path_name(&self) -> Result<Option<&'data str>> {
-        self.format.get_string(self.file.path_name_idx)
+        self.cache.get_string(self.file.path_name_idx)
     }
 
     /// Resolves and concatenates the full path based on its individual fragments.
@@ -103,16 +103,16 @@ impl<'data> File<'data> {
 }
 
 /// A Function definition as included in the SymCache.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Function<'data> {
-    format: &'data SymCache<'data>,
+    cache: &'data SymCache<'data>,
     function: &'data raw::Function,
 }
 
 impl<'data> Function<'data> {
     /// The possibly mangled name/symbol of this function.
     pub fn name(&self) -> Result<Option<&'data str>> {
-        self.format.get_string(self.function.name_idx)
+        self.cache.get_string(self.function.name_idx)
     }
 }
 
@@ -156,7 +156,7 @@ impl<'data> SourceLocationIter<'data> {
 /// an instruction in the executable.
 #[derive(Debug)]
 pub struct SourceLocation<'data> {
-    format: &'data SymCache<'data>,
+    cache: &'data SymCache<'data>,
     source_location: &'data raw::SourceLocation,
 }
 
@@ -170,7 +170,7 @@ impl SourceLocation<'_> {
 
     /// The source file corresponding to the instruction.
     pub fn file(&self) -> Result<Option<File<'_>>> {
-        self.format.get_file(self.source_location.file_idx)
+        self.cache.get_file(self.source_location.file_idx)
     }
 
     /// The function corresponding to the instruction.
@@ -179,9 +179,9 @@ impl SourceLocation<'_> {
         if function_idx == u32::MAX {
             return Ok(None);
         }
-        match self.format.functions.get(function_idx as usize) {
+        match self.cache.functions.get(function_idx as usize) {
             Some(function) => Ok(Some(Function {
-                format: self.format,
+                cache: self.cache,
                 function,
             })),
             None => Err(Error::InvalidFunctionReference(function_idx)),
