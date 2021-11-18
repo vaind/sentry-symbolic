@@ -1,4 +1,6 @@
-use super::{raw, Error, SymCache, Result};
+use symbolic_common::Language;
+
+use super::{raw, Error, Result, SymCache};
 
 impl SymCache<'_> {
     /// Looks up an instruction address in the SymCache, yielding an iterator of [`SourceLocation`]s.
@@ -39,6 +41,22 @@ impl SymCache<'_> {
         match self.files.get(file_idx as usize) {
             Some(file) => Ok(Some(File { cache: self, file })),
             None => Err(Error::InvalidFileReference(file_idx)),
+        }
+    }
+
+    /// An iterator over the functions in this symcache.
+    pub fn functions(&mut self) -> FunctionIter<'_> {
+        FunctionIter {
+            cache: self,
+            function_idx: 0,
+        }
+    }
+
+    /// An iterator over the files in this symcache.
+    pub fn files(&mut self) -> FileIter<'_> {
+        FileIter {
+            cache: self,
+            file_idx: 0,
         }
     }
 }
@@ -114,39 +132,15 @@ impl<'data> Function<'data> {
     pub fn name(&self) -> Result<Option<&'data str>> {
         self.cache.get_string(self.function.name_idx)
     }
-}
 
-/// An Iterator that yields [`SourceLocation`]s, representing an inlining hierarchy.
-#[derive(Debug)]
-pub struct SourceLocationIter<'data> {
-    format: &'data SymCache<'data>,
-    source_location_idx: u32,
-}
+    /// The entry pc of the function.
+    pub fn entry_pc(&self) -> u32 {
+        self.function.entry_pc
+    }
 
-impl<'data> SourceLocationIter<'data> {
-    /// Yields the next [`SourceLocation`] in the inlining hierarchy.
-    // We return a `Result` here, so its not a *real* `Iterator`
-    #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Result<Option<SourceLocation<'data>>> {
-        if self.source_location_idx == u32::MAX {
-            return Ok(None);
-        }
-        match self
-            .format
-            .source_locations
-            .get(self.source_location_idx as usize)
-        {
-            Some(source_location) => {
-                self.source_location_idx = source_location.inlined_into_idx;
-                Ok(Some(SourceLocation {
-                    format: self.format,
-                    source_location,
-                }))
-            }
-            None => Err(Error::InvalidSourceLocationReference(
-                self.source_location_idx,
-            )),
-        }
+    /// The language the function is written in.
+    pub fn language(&self) -> Language {
+        Language::from_u32(self.function.lang as u32)
     }
 }
 
@@ -190,4 +184,84 @@ impl SourceLocation<'_> {
 
     // TODO: maybe forward some of the `File` and `Function` accessors, such as:
     // `function_name` or `full_path` for convenience.
+}
+
+#[derive(Debug, Clone)]
+pub struct FileIter<'data> {
+    cache: &'data SymCache<'data>,
+    file_idx: u32,
+}
+
+impl<'data> Iterator for FileIter<'data> {
+    type Item = File<'data>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.cache
+            .files
+            .get(self.file_idx as usize)
+            .map(|raw_file| {
+                self.file_idx += 1;
+                File {
+                    cache: self.cache,
+                    file: raw_file,
+                }
+            })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionIter<'data> {
+    cache: &'data SymCache<'data>,
+    function_idx: u32,
+}
+
+impl<'data> Iterator for FunctionIter<'data> {
+    type Item = Function<'data>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.cache
+            .functions
+            .get(self.function_idx as usize)
+            .map(|raw_function| {
+                self.function_idx += 1;
+                Function {
+                    cache: self.cache,
+                    function: raw_function,
+                }
+            })
+    }
+}
+
+/// An Iterator that yields [`SourceLocation`]s, representing an inlining hierarchy.
+#[derive(Debug)]
+pub struct SourceLocationIter<'data> {
+    cache: &'data SymCache<'data>,
+    source_location_idx: u32,
+}
+
+impl<'data> SourceLocationIter<'data> {
+    /// Yields the next [`SourceLocation`] in the inlining hierarchy.
+    // We return a `Result` here, so its not a *real* `Iterator`
+    #[allow(clippy::should_implement_trait)]
+    pub fn next(&mut self) -> Result<Option<SourceLocation<'data>>> {
+        if self.source_location_idx == u32::MAX {
+            return Ok(None);
+        }
+        match self
+            .cache
+            .source_locations
+            .get(self.source_location_idx as usize)
+        {
+            Some(source_location) => {
+                self.source_location_idx = source_location.inlined_into_idx;
+                Ok(Some(SourceLocation {
+                    cache: self.cache,
+                    source_location,
+                }))
+            }
+            None => Err(Error::InvalidSourceLocationReference(
+                self.source_location_idx,
+            )),
+        }
+    }
 }
