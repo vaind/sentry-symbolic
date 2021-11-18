@@ -15,7 +15,7 @@ pub const SYMCACHE_MAGIC_FLIPPED: u32 = SYMCACHE_MAGIC.swap_bytes();
 /// The latest version of the file format.
 pub const SYMCACHE_VERSION: u32 = 1_000;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct Header {
     /// The file magic representing the file format and endianness.
@@ -41,7 +41,7 @@ pub struct Header {
 }
 
 /// Serialized Function metadata in the SymCache.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct Function {
     /// The functions name (reference to a [`String`]).
@@ -53,7 +53,7 @@ pub struct Function {
 }
 
 /// Serialized File in the SymCache.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct File {
     /// The optional compilation directory prefix (reference to a [`String`]).
@@ -86,7 +86,7 @@ pub struct SourceLocation {
 }
 
 /// Serialized String in the SymCache.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct String {
     /// The offset into the `string_bytes`.
@@ -99,7 +99,7 @@ pub struct String {
 ///
 /// We only save the start address, the end is implicitly given
 /// by the next range's start.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct Range(pub u32);
 
