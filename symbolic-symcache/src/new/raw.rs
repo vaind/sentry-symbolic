@@ -17,7 +17,7 @@ pub const SYMCACHE_MAGIC_FLIPPED: u32 = SYMCACHE_MAGIC.swap_bytes();
 /// The latest version of the file format.
 pub const SYMCACHE_VERSION: u32 = 1_000;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(C)]
 pub struct Header {
     /// The file magic representing the file format and endianness.

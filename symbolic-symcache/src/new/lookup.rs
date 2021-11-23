@@ -163,7 +163,7 @@ impl<'data> Function<'data> {
 ///
 /// The source location represents a `(function, file, line, inlined_into)` tuple corresponding to
 /// an instruction in the executable.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceLocation<'data> {
     cache: &'data SymCache<'data>,
     source_location: &'data raw::SourceLocation,
