@@ -87,11 +87,7 @@ impl<'data> LineInfo<'data> {
     pub fn compilation_dir(&self) -> &'data str {
         match self.0 {
             LineInfoInner::Old(li) => li.compilation_dir(),
-            LineInfoInner::New(sl) => {
-                let file = sl.file().unwrap();
-                let comp_dir = file.and_then(|f| f.comp_dir().unwrap());
-                comp_dir.unwrap_or_default()
-            }
+            LineInfoInner::New(sl) => sl.file().and_then(|f| f.comp_dir()).unwrap_or_default(),
         }
     }
 
@@ -99,11 +95,7 @@ impl<'data> LineInfo<'data> {
     pub fn base_dir(&self) -> &'data str {
         match self.0 {
             LineInfoInner::Old(li) => li.base_dir(),
-            LineInfoInner::New(sl) => {
-                let file = sl.file().unwrap();
-                let base_dir = file.and_then(|f| f.directory().unwrap());
-                base_dir.unwrap_or_default()
-            }
+            LineInfoInner::New(sl) => sl.file().and_then(|f| f.directory()).unwrap_or_default(),
         }
     }
 
@@ -111,24 +103,20 @@ impl<'data> LineInfo<'data> {
     pub fn filename(&self) -> &'data str {
         match self.0 {
             LineInfoInner::Old(li) => li.filename(),
-            LineInfoInner::New(sl) => {
-                let file = sl.file().unwrap();
-                let name = file.and_then(|f| f.path_name().unwrap());
-                name.unwrap_or_default()
-            }
+            LineInfoInner::New(sl) => sl.file().map(|f| f.path_name()).unwrap_or_default(),
         }
     }
 
     /// The joined path and file name relative to the compilation directory.
     pub fn path(&self) -> String {
-        let joined = symbolic_common::join_path(self.base_dir, self.filename);
+        let joined = symbolic_common::join_path(self.base_dir(), self.filename());
         symbolic_common::clean_path(&joined).into_owned()
     }
 
     /// The fully joined absolute path including the compilation directory.
     pub fn abs_path(&self) -> String {
-        let joined_path = symbolic_common::join_path(self.base_dir, self.filename);
-        let joined = symbolic_common::join_path(self.comp_dir, &joined_path);
+        let joined_path = symbolic_common::join_path(self.base_dir(), self.filename());
+        let joined = symbolic_common::join_path(self.compilation_dir(), &joined_path);
         symbolic_common::clean_path(&joined).into_owned()
     }
 
@@ -143,12 +131,8 @@ impl<'data> LineInfo<'data> {
     /// The source code language.
     pub fn language(&self) -> Language {
         match self.0 {
-            LineInfoInner::Old(li) => li.line(),
-            LineInfoInner::New(sl) => sl
-                .function()
-                .unwrap()
-                .map(|f| f.language())
-                .unwrap_or_default(),
+            LineInfoInner::Old(li) => li.language(),
+            LineInfoInner::New(sl) => sl.function().map(|f| f.language()).unwrap_or_default(),
         }
     }
 
@@ -156,11 +140,7 @@ impl<'data> LineInfo<'data> {
     pub fn symbol(&self) -> &'data str {
         match self.0 {
             LineInfoInner::Old(li) => li.symbol(),
-            LineInfoInner::New(sl) => sl
-                .function()
-                .unwrap()
-                .and_then(|f| f.name().unwrap())
-                .unwrap_or("?"),
+            LineInfoInner::New(sl) => sl.function().and_then(|f| f.name()).unwrap_or("?"),
         }
     }
 
@@ -185,14 +165,9 @@ impl<'data, 'cache> Iterator for Lookup<'data, 'cache> {
                 };
                 Some(result)
             }
-            LookupInner::New(source_location_iter) => {
-                let source_location = source_location_iter.next()?;
-                let result = match source_location {
-                    Ok(sl) => Ok(LineInfo(LineInfoInner::New(sl))),
-                    Err(e) => Err(SymCacheError::New(e)),
-                };
-                Some(result)
-            }
+            LookupInner::New(source_location_iter) => source_location_iter
+                .next()
+                .map(|sl| Ok(LineInfo(LineInfoInner::New(sl)))),
         }
     }
 }

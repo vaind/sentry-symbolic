@@ -142,26 +142,17 @@ impl<'data> SymCache<'data> {
     }
 
     /// Resolves a string reference to the pointed-to `&str` data.
-    fn get_string(&self, string_idx: u32) -> Result<Option<&str>> {
+    fn get_string(&self, string_idx: u32) -> Option<&str> {
         if string_idx == u32::MAX {
-            return Ok(None);
+            return None;
         }
-        let string = self
-            .strings
-            .get(string_idx as usize)
-            .ok_or(Error::InvalidStringReference(string_idx))?;
+        let string = self.strings.get(string_idx as usize)?;
 
         let start_offset = string.string_offset as usize;
         let end_offset = start_offset + string.string_len as usize;
-        let bytes = self
-            .string_bytes
-            .get(start_offset..end_offset)
-            .ok_or(Error::InvalidStringDataReference(string_idx))?;
+        let bytes = self.string_bytes.get(start_offset..end_offset)?;
 
-        let s =
-            std::str::from_utf8(bytes).map_err(|err| Error::InvalidStringData(string_idx, err))?;
-
-        Ok(Some(s))
+        std::str::from_utf8(bytes).ok()
     }
 
     /// The version of the SymCache file format.

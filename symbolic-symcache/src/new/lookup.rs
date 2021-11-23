@@ -7,10 +7,10 @@ impl SymCache<'_> {
     ///
     /// This always returns an iterator, however that iterator might be empty in case no [`SourceLocation`]
     /// was found for the given `addr`.
-    pub fn lookup(self, addr: u64) -> SourceLocationIter<'_> {
+    pub fn lookup(&self, addr: u64) -> SourceLocationIter<'_> {
         use std::convert::TryFrom;
         let addr = match addr
-            .checked_sub(self.range_offset)
+            .checked_sub(self.header.range_offset)
             .and_then(|r| u32::try_from(r).ok())
         {
             Some(addr) => addr,
@@ -34,14 +34,13 @@ impl SymCache<'_> {
         }
     }
 
-    fn get_file(&self, file_idx: u32) -> Result<Option<File<'_>>> {
+    fn get_file(&self, file_idx: u32) -> Option<File<'_>> {
         if file_idx == u32::MAX {
-            return Ok(None);
+            return None;
         }
-        match self.files.get(file_idx as usize) {
-            Some(file) => Ok(Some(File { cache: self, file })),
-            None => Err(Error::InvalidFileReference(file_idx)),
-        }
+        self.files
+            .get(file_idx as usize)
+            .map(|file| File { cache: self, file })
     }
 
     /// An iterator over the functions in this symcache.
@@ -88,35 +87,31 @@ pub struct File<'data> {
 
 impl<'data> File<'data> {
     /// Resolves the compilation directory of this source file.
-    pub fn comp_dir(&self) -> Result<Option<&'data str>> {
+    pub fn comp_dir(&self) -> Option<&'data str> {
         self.cache.get_string(self.file.comp_dir_idx)
     }
 
     /// Resolves the parent directory of this source file.
-    pub fn directory(&self) -> Result<Option<&'data str>> {
+    pub fn directory(&self) -> Option<&'data str> {
         self.cache.get_string(self.file.directory_idx)
     }
 
     /// Resolves the final path name fragment of this source file.
-    pub fn path_name(&self) -> Result<Option<&'data str>> {
-        self.cache.get_string(self.file.path_name_idx)
+    pub fn path_name(&self) -> &'data str {
+        self.cache.get_string(self.file.path_name_idx).unwrap()
     }
 
     /// Resolves and concatenates the full path based on its individual fragments.
-    pub fn full_path(&self) -> Result<Option<String>> {
-        let comp_dir = self.comp_dir()?.unwrap_or_default();
-        let directory = self.directory()?.unwrap_or_default();
-        let path_name = self.path_name()?.unwrap_or_default();
+    pub fn full_path(&self) -> String {
+        let comp_dir = self.comp_dir().unwrap_or_default();
+        let directory = self.directory().unwrap_or_default();
+        let path_name = self.path_name();
 
         let prefix = symbolic_common::join_path(comp_dir, directory);
         let full_path = symbolic_common::join_path(&prefix, path_name);
         let full_path = symbolic_common::clean_path(&full_path).into_owned();
 
-        Ok(if full_path.is_empty() {
-            None
-        } else {
-            Some(full_path)
-        })
+        full_path
     }
 }
 
@@ -129,7 +124,7 @@ pub struct Function<'data> {
 
 impl<'data> Function<'data> {
     /// The possibly mangled name/symbol of this function.
-    pub fn name(&self) -> Result<Option<&'data str>> {
+    pub fn name(&self) -> Option<&'data str> {
         self.cache.get_string(self.function.name_idx)
     }
 
@@ -163,23 +158,24 @@ impl SourceLocation<'_> {
     }
 
     /// The source file corresponding to the instruction.
-    pub fn file(&self) -> Result<Option<File<'_>>> {
+    pub fn file(&self) -> Option<File<'data>> {
         self.cache.get_file(self.source_location.file_idx)
     }
 
     /// The function corresponding to the instruction.
-    pub fn function(&self) -> Result<Option<Function<'_>>> {
+    pub fn function(&self) -> Option<Function<'data>> {
         let function_idx = self.source_location.function_idx;
         if function_idx == u32::MAX {
-            return Ok(None);
+            return None;
         }
-        match self.cache.functions.get(function_idx as usize) {
-            Some(function) => Ok(Some(Function {
+        self.cache
+            .functions
+            .get(function_idx as usize)
+            .map(|function| Function {
                 cache: self.cache,
                 function,
-            })),
-            None => Err(Error::InvalidFunctionReference(function_idx)),
-        }
+            })
+    }
     }
 
     // TODO: maybe forward some of the `File` and `Function` accessors, such as:
@@ -239,29 +235,22 @@ pub struct SourceLocationIter<'data> {
     source_location_idx: u32,
 }
 
-impl<'data> SourceLocationIter<'data> {
-    /// Yields the next [`SourceLocation`] in the inlining hierarchy.
-    // We return a `Result` here, so its not a *real* `Iterator`
-    #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Result<Option<SourceLocation<'data>>> {
+impl<'data> Iterator for SourceLocationIter<'data> {
+    type Item = SourceLocation<'data>;
+
+    fn next(&mut self) -> Option<Self::Item> {
         if self.source_location_idx == u32::MAX {
-            return Ok(None);
+            return None;
         }
-        match self
-            .cache
+        self.cache
             .source_locations
             .get(self.source_location_idx as usize)
-        {
-            Some(source_location) => {
+            .map(|source_location| {
                 self.source_location_idx = source_location.inlined_into_idx;
-                Ok(Some(SourceLocation {
+                SourceLocation {
                     cache: self.cache,
                     source_location,
-                }))
-            }
-            None => Err(Error::InvalidSourceLocationReference(
-                self.source_location_idx,
-            )),
-        }
+                }
+            })
     }
 }
