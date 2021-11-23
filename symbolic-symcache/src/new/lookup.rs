@@ -1,6 +1,6 @@
-use symbolic_common::Language;
+use symbolic_common::{Arch, DebugId, Language};
 
-use super::{raw, Error, Result, SymCache};
+use super::{raw, SymCache};
 
 impl SymCache<'_> {
     /// Looks up an instruction address in the SymCache, yielding an iterator of [`SourceLocation`]s.
@@ -32,6 +32,26 @@ impl SymCache<'_> {
             cache: self,
             source_location_idx,
         }
+    }
+
+    /// The architecture of the symbol file.
+    pub fn arch(&self) -> Arch {
+        self.header.arch
+    }
+
+    /// The debug identifier of the cache file.
+    pub fn debug_id(&self) -> DebugId {
+        self.header.debug_id
+    }
+
+    /// Returns true if line information is included.
+    pub fn has_line_info(&self) -> bool {
+        !self.ranges.is_empty()
+    }
+
+    /// Returns true if file information is included.
+    pub fn has_file_info(&self) -> bool {
+        !self.files.is_empty()
     }
 
     fn get_file(&self, file_idx: u32) -> Option<File<'_>> {
@@ -176,6 +196,13 @@ impl SourceLocation<'_> {
                 function,
             })
     }
+
+    pub fn arch(&self) -> Arch {
+        self.cache.arch()
+    }
+
+    pub fn debug_id(&self) -> DebugId {
+        self.cache.debug_id()
     }
 
     // TODO: maybe forward some of the `File` and `Function` accessors, such as:

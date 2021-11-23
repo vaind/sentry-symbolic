@@ -159,24 +159,4 @@ impl<'data> SymCache<'data> {
     pub fn version(&self) -> u32 {
         self.header.version
     }
-
-    /// The architecture of the symbol file.
-    pub fn arch(&self) -> Arch {
-        self.header.arch
-    }
-
-    /// The debug identifier of the cache file.
-    pub fn debug_id(&self) -> DebugId {
-        self.header.debug_id
-    }
-
-    /// Returns true if line information is included.
-    pub fn has_line_info(&self) -> bool {
-        !self.ranges.is_empty()
-    }
-
-    /// Returns true if file information is included.
-    pub fn has_file_info(&self) -> bool {
-        !self.files.is_empty()
-    }
 }
