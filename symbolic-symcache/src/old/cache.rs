@@ -406,17 +406,17 @@ impl fmt::Debug for Lookup<'_, '_> {
 /// Information on a matched source line.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LineInfo<'a> {
-    arch: Arch,
-    debug_id: DebugId,
-    sym_addr: u64,
-    line_addr: u64,
-    instr_addr: u64,
-    line: u32,
-    lang: Language,
-    symbol: Option<&'a str>,
-    filename: &'a str,
-    base_dir: &'a str,
-    comp_dir: &'a str,
+    pub(crate) arch: Arch,
+    pub(crate) debug_id: DebugId,
+    pub(crate) sym_addr: u64,
+    pub(crate) line_addr: u64,
+    pub(crate) instr_addr: u64,
+    pub(crate) line: u32,
+    pub(crate) lang: Language,
+    pub(crate) symbol: Option<&'a str>,
+    pub(crate) filename: &'a str,
+    pub(crate) base_dir: &'a str,
+    pub(crate) comp_dir: &'a str,
 }
 
 impl<'a> LineInfo<'a> {

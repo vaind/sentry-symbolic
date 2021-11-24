@@ -1,10 +1,15 @@
-//! Provides SymCache support.
+//! Provides symcache support.
 
 #![warn(missing_docs)]
 
-// TODO: temporarily, since usage will be added later on.
-#[allow(dead_code)]
+mod compat;
 mod new;
 mod old;
 
-pub use old::*;
+// These are here for backwards compatibility:
+pub use old::format;
+
+pub use old::error::*;
+pub use old::writer::*;
+
+pub use compat::*;

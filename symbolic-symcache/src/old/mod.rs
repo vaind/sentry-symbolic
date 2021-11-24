@@ -2,9 +2,9 @@
 
 #![warn(missing_docs)]
 
-mod cache;
-mod error;
-mod writer;
+pub mod cache;
+pub mod error;
+pub mod writer;
 
 pub mod format;
 
