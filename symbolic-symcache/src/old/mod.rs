@@ -6,6 +6,7 @@ use std::fmt;
 use symbolic_common::{Arch, AsSelf, DebugId, Language, Name, NameMangling};
 
 pub use error::SymCacheError;
+pub(crate) use error::SymCacheErrorKind;
 
 /// A platform independent symbolication cache.
 ///

@@ -272,16 +272,6 @@ pub struct LineRecord {
     pub line: u16,
 }
 
-/// The start of a SymCache file.
-#[repr(C, packed)]
-#[derive(Default, Copy, Clone, Debug)]
-pub struct Preamble {
-    /// Magic bytes, see `SYMCACHE_MAGIC`.
-    pub magic: [u8; 4],
-    /// Version of the SymCache file format.
-    pub version: u32,
-}
-
 /// DEPRECATED. Header used by V1 SymCaches.
 #[repr(C, packed)]
 #[derive(Default, Copy, Clone, Debug)]

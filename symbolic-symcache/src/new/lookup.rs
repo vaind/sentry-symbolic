@@ -2,12 +2,12 @@ use symbolic_common::{Arch, DebugId, Language};
 
 use super::{raw, SymCache};
 
-impl SymCache<'_> {
+impl<'data> SymCache<'data> {
     /// Looks up an instruction address in the SymCache, yielding an iterator of [`SourceLocation`]s.
     ///
     /// This always returns an iterator, however that iterator might be empty in case no [`SourceLocation`]
     /// was found for the given `addr`.
-    pub fn lookup(&self, addr: u64) -> SourceLocationIter<'_> {
+    pub fn lookup(&self, addr: u64) -> SourceLocationIter<'data, '_> {
         use std::convert::TryFrom;
         let addr = match addr
             .checked_sub(self.header.range_offset)
@@ -54,7 +54,7 @@ impl SymCache<'_> {
         !self.files.is_empty()
     }
 
-    fn get_file(&self, file_idx: u32) -> Option<File<'_>> {
+    fn get_file(&self, file_idx: u32) -> Option<File<'data, '_>> {
         if file_idx == u32::MAX {
             return None;
         }
@@ -64,7 +64,7 @@ impl SymCache<'_> {
     }
 
     /// An iterator over the functions in this symcache.
-    pub fn functions(&self) -> FunctionIter<'_> {
+    pub fn functions(&self) -> FunctionIter<'data, '_> {
         FunctionIter {
             cache: self,
             function_idx: 0,
@@ -72,7 +72,7 @@ impl SymCache<'_> {
     }
 
     /// An iterator over the files in this symcache.
-    pub fn files(&self) -> FileIter<'_> {
+    pub fn files(&self) -> FileIter<'data, '_> {
         FileIter {
             cache: self,
             file_idx: 0,
@@ -100,12 +100,12 @@ impl SymCache<'_> {
 ///   - directory: /usr/include/
 ///   - path_name: pthread.h
 #[derive(Debug, Clone)]
-pub struct File<'data> {
-    cache: &'data SymCache<'data>,
+pub struct File<'data, 'cache> {
+    cache: &'cache SymCache<'data>,
     file: &'data raw::File,
 }
 
-impl<'data> File<'data> {
+impl<'data, 'cache> File<'data, 'cache> {
     /// Resolves the compilation directory of this source file.
     pub fn comp_dir(&self) -> Option<&'data str> {
         self.cache.get_string(self.file.comp_dir_idx)
@@ -137,12 +137,12 @@ impl<'data> File<'data> {
 
 /// A Function definition as included in the SymCache.
 #[derive(Clone, Debug)]
-pub struct Function<'data> {
-    cache: &'data SymCache<'data>,
+pub struct Function<'data, 'cache> {
+    cache: &'cache SymCache<'data>,
     function: &'data raw::Function,
 }
 
-impl<'data> Function<'data> {
+impl<'data, 'cache> Function<'data, 'cache> {
     /// The possibly mangled name/symbol of this function.
     pub fn name(&self) -> Option<&'data str> {
         self.cache.get_string(self.function.name_idx)
@@ -164,12 +164,12 @@ impl<'data> Function<'data> {
 /// The source location represents a `(function, file, line, inlined_into)` tuple corresponding to
 /// an instruction in the executable.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceLocation<'data> {
-    cache: &'data SymCache<'data>,
+pub struct SourceLocation<'data, 'cache> {
+    cache: &'cache SymCache<'data>,
     source_location: &'data raw::SourceLocation,
 }
 
-impl SourceLocation<'_> {
+impl<'data, 'cache> SourceLocation<'data, 'cache> {
     /// The source line corresponding to the instruction.
     ///
     /// This might return `0` when no line information can be found.
@@ -178,12 +178,12 @@ impl SourceLocation<'_> {
     }
 
     /// The source file corresponding to the instruction.
-    pub fn file(&self) -> Option<File<'data>> {
+    pub fn file(&self) -> Option<File<'data, 'cache>> {
         self.cache.get_file(self.source_location.file_idx)
     }
 
     /// The function corresponding to the instruction.
-    pub fn function(&self) -> Option<Function<'data>> {
+    pub fn function(&self) -> Option<Function<'data, 'cache>> {
         let function_idx = self.source_location.function_idx;
         if function_idx == u32::MAX {
             return None;
@@ -210,13 +210,13 @@ impl SourceLocation<'_> {
 }
 
 #[derive(Debug, Clone)]
-pub struct FileIter<'data> {
-    cache: &'data SymCache<'data>,
+pub struct FileIter<'data, 'cache> {
+    cache: &'cache SymCache<'data>,
     file_idx: u32,
 }
 
-impl<'data> Iterator for FileIter<'data> {
-    type Item = File<'data>;
+impl<'data, 'cache> Iterator for FileIter<'data, 'cache> {
+    type Item = File<'data, 'cache>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.cache
@@ -233,13 +233,13 @@ impl<'data> Iterator for FileIter<'data> {
 }
 
 #[derive(Debug, Clone)]
-pub struct FunctionIter<'data> {
-    cache: &'data SymCache<'data>,
+pub struct FunctionIter<'data, 'cache> {
+    cache: &'cache SymCache<'data>,
     function_idx: u32,
 }
 
-impl<'data> Iterator for FunctionIter<'data> {
-    type Item = Function<'data>;
+impl<'data, 'cache> Iterator for FunctionIter<'data, 'cache> {
+    type Item = Function<'data, 'cache>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.cache
@@ -257,13 +257,13 @@ impl<'data> Iterator for FunctionIter<'data> {
 
 /// An Iterator that yields [`SourceLocation`]s, representing an inlining hierarchy.
 #[derive(Debug, Clone)]
-pub struct SourceLocationIter<'data> {
-    cache: &'data SymCache<'data>,
+pub struct SourceLocationIter<'data, 'cache> {
+    cache: &'cache SymCache<'data>,
     source_location_idx: u32,
 }
 
-impl<'data> Iterator for SourceLocationIter<'data> {
-    type Item = SourceLocation<'data>;
+impl<'data, 'cache> Iterator for SourceLocationIter<'data, 'cache> {
+    type Item = SourceLocation<'data, 'cache>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.source_location_idx == u32::MAX {

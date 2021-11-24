@@ -4,6 +4,8 @@
 
 use symbolic_common::{Arch, DebugId};
 
+use crate::Preamble;
+
 /// The magic file preamble as individual bytes.
 const SYMCACHE_MAGIC_BYTES: [u8; 4] = *b"SYMC";
 
@@ -20,10 +22,7 @@ pub const SYMCACHE_VERSION: u32 = 1_000;
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(C)]
 pub struct Header {
-    /// The file magic representing the file format and endianness.
-    pub magic: u32,
-    /// The SymCache Format Version.
-    pub version: u32,
+    preamble: Preamble,
     /// Debug identifier of the object file.
     pub debug_id: DebugId,
     /// CPU architecture of the object file.

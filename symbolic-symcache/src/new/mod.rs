@@ -10,7 +10,6 @@ pub(crate) mod raw;
 pub use error::Error;
 pub use lookup::*;
 use raw::align_to_eight;
-use symbolic_common::{Arch, DebugId};
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -142,7 +141,7 @@ impl<'data> SymCache<'data> {
     }
 
     /// Resolves a string reference to the pointed-to `&str` data.
-    fn get_string(&self, string_idx: u32) -> Option<&str> {
+    fn get_string(&self, string_idx: u32) -> Option<&'data str> {
         if string_idx == u32::MAX {
             return None;
         }
