@@ -99,18 +99,21 @@ impl<'slf, 'd: 'slf> AsSelf<'slf> for SymCache<'d> {
     }
 }
 
-// impl From<new::Error> for old::SymCacheError {
-//     fn from(new_error: new::Error) -> Self {
-//         let kind = match new_error {
-//             new::Error::BufferNotAligned => todo!(),
-//             new::Error::HeaderTooSmall => old::SymCacheErrorKind::BadFileHeader,
-//             new::Error::WrongEndianness => todo!(),
-//             new::Error::WrongFormat => old::SymCacheErrorKind::BadFileMagic,
-//             new::Error::WrongVersion => old::SymCacheErrorKind::UnsupportedVersion,
-//             new::Error::BadFormatLength => todo!(),
-//         };
-//     }
-// }
+impl From<new::Error> for old::SymCacheError {
+    fn from(new_error: new::Error) -> Self {
+        let kind = match new_error {
+            new::Error::BufferNotAligned | new::Error::BadFormatLength => {
+                old::SymCacheErrorKind::BadCacheFile
+            }
+            new::Error::HeaderTooSmall => old::SymCacheErrorKind::BadFileHeader,
+            new::Error::WrongEndianness => old::SymCacheErrorKind::WrongEndianness,
+            new::Error::WrongFormat => old::SymCacheErrorKind::BadFileMagic,
+            new::Error::WrongVersion => old::SymCacheErrorKind::UnsupportedVersion,
+        };
+
+        Self { kind, source: None }
+    }
+}
 
 #[derive(Clone, Debug)]
 enum FunctionsInner<'data> {
