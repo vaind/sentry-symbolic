@@ -1,30 +1,39 @@
 use symbolic_common::{Arch, AsSelf, DebugId};
 
-use crate::{new, old, SymCacheError};
+use crate::{new, old, preamble, SymCacheError};
+
+/// The cutoff version between the old and new symcache formats.
+const SYMCACHE_VERSION_CUTOFF: u32 = 1_000;
+
+#[derive(Debug)]
+pub enum SymCacheInner<'data> {
+    Old(old::SymCache<'data>),
+    New(new::SymCache<'data>),
+}
 
 /// A platform independent symbolication cache.
 ///
 /// Use [`SymCacheWriter`](super::writer::SymCacheWriter) writer to create SymCaches,
 /// including the conversion from object files.
 #[derive(Debug)]
-pub enum SymCache<'data> {
-    Old(old::SymCache<'data>),
-    New(new::SymCache<'data>),
-}
+pub struct SymCache<'data>(SymCacheInner<'data>);
 
 impl<'data> SymCache<'data> {
     /// Parses a SymCache from a binary buffer.
     pub fn parse(data: &'data [u8]) -> Result<Self, SymCacheError> {
-        new::SymCache::parse(data)
-            .map(Self::New)
-            .or_else(|_| old::SymCache::parse(data).map(Self::Old))
+        let preamble = preamble::Preamble::parse(data)?;
+        if preamble.version >= SYMCACHE_VERSION_CUTOFF {
+            Ok(Self(SymCacheInner::New(new::SymCache::parse(data)?)))
+        } else {
+            Ok(Self(SymCacheInner::Old(old::SymCache::parse(data)?)))
+        }
     }
 
     /// The version of the SymCache file format.
     pub fn version(&self) -> u32 {
-        match self {
-            Self::New(symc) => symc.version(),
-            Self::Old(symc) => symc.version(),
+        match self.0 {
+            SymCacheInner::New(symc) => symc.version(),
+            SymCacheInner::Old(symc) => symc.version(),
         }
     }
     /// Returns whether this cache is up-to-date.
@@ -34,41 +43,41 @@ impl<'data> SymCache<'data> {
 
     /// The architecture of the symbol file.
     pub fn arch(&self) -> Arch {
-        match self {
-            Self::New(symc) => symc.arch(),
-            Self::Old(symc) => symc.arch(),
+        match self.0 {
+            SymCacheInner::New(symc) => symc.arch(),
+            SymCacheInner::Old(symc) => symc.arch(),
         }
     }
 
     /// The debug identifier of the cache file.
     pub fn debug_id(&self) -> DebugId {
-        match self {
-            Self::New(symc) => symc.debug_id(),
-            Self::Old(symc) => symc.debug_id(),
+        match self.0 {
+            SymCacheInner::New(symc) => symc.debug_id(),
+            SymCacheInner::Old(symc) => symc.debug_id(),
         }
     }
 
     /// Returns true if line information is included.
     pub fn has_line_info(&self) -> bool {
-        match self {
-            Self::New(symc) => symc.has_line_info(),
-            Self::Old(symc) => symc.has_line_info(),
+        match self.0 {
+            SymCacheInner::New(symc) => symc.has_line_info(),
+            SymCacheInner::Old(symc) => symc.has_line_info(),
         }
     }
 
     /// Returns true if file information is included.
     pub fn has_file_info(&self) -> bool {
-        match self {
-            Self::New(symc) => symc.has_file_info(),
-            Self::Old(symc) => symc.has_file_info(),
+        match self.0 {
+            SymCacheInner::New(symc) => symc.has_file_info(),
+            SymCacheInner::Old(symc) => symc.has_file_info(),
         }
     }
 
     /// Returns an iterator over all functions.
     pub fn functions(&self) -> Functions<'data> {
-        match self {
-            Self::New(symc) => Functions(FunctionsInner::New(symc.functions())),
-            Self::Old(symc) => Functions(FunctionsInner::Old(symc.functions())),
+        match self.0 {
+            SymCacheInner::New(symc) => Functions(FunctionsInner::New(symc.functions())),
+            SymCacheInner::Old(symc) => Functions(FunctionsInner::Old(symc.functions())),
         }
     }
 
@@ -78,12 +87,12 @@ impl<'data> SymCache<'data> {
     /// more symbols.  If nothing is found then the return value will be
     /// an empty vector.
     pub fn lookup(&self, addr: u64) -> Result<Lookup<'data, '_>, SymCacheError> {
-        match self {
-            Self::New(symc) => Ok(Lookup(LookupInner::New {
+        match self.0 {
+            SymCacheInner::New(symc) => Ok(Lookup(LookupInner::New {
                 iter: symc.lookup(addr),
                 lookup_addr: addr,
             })),
-            Self::Old(symc) => {
+            SymCacheInner::Old(symc) => {
                 let lookup = symc.lookup(addr)?;
                 Ok(Lookup(LookupInner::Old(lookup)))
             }
@@ -106,7 +115,6 @@ impl From<new::Error> for old::SymCacheError {
                 old::SymCacheErrorKind::BadCacheFile
             }
             new::Error::HeaderTooSmall => old::SymCacheErrorKind::BadFileHeader,
-            new::Error::WrongEndianness => old::SymCacheErrorKind::WrongEndianness,
             new::Error::WrongFormat => old::SymCacheErrorKind::BadFileMagic,
             new::Error::WrongVersion => old::SymCacheErrorKind::UnsupportedVersion,
         };
