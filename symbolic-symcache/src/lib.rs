@@ -1,4 +1,4 @@
-//! Provides symcache support.
+//! Provides SymCache support.
 
 #![warn(missing_docs)]
 

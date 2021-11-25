@@ -1,7 +1,6 @@
 //! The SymCache binary format.
 //!
 //!
-
 use std::{mem, ptr};
 
 use symbolic_common::{Arch, DebugId};
@@ -10,10 +9,12 @@ mod compat;
 mod error;
 mod lookup;
 pub(crate) mod raw;
+mod writer;
 
 pub use compat::*;
 pub use error::Error;
 pub use lookup::*;
+
 use raw::align_to_eight;
 
 type Result<T, E = Error> = std::result::Result<T, E>;

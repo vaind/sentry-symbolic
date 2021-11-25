@@ -131,10 +131,10 @@ mod tests {
 
     #[test]
     fn test_sizeof() {
-        assert_eq!(mem::size_of::<Header>(), 32);
-        assert_eq!(mem::align_of::<Header>(), 4);
+        assert_eq!(mem::size_of::<Header>(), 80);
+        assert_eq!(mem::align_of::<Header>(), 8);
 
-        assert_eq!(mem::size_of::<Function>(), 12);
+        assert_eq!(mem::size_of::<Function>(), 16);
         assert_eq!(mem::align_of::<Function>(), 4);
 
         assert_eq!(mem::size_of::<File>(), 12);
