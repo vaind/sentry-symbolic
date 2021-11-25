@@ -86,6 +86,7 @@ impl fmt::Display for SymCacheErrorKind {
             Self::ValueTooLarge(kind) => write!(f, "{} too large for symcache file format", kind),
             Self::TooManyValues(kind) => write!(f, "too many {}s for symcache", kind),
             Self::WriteFailed => write!(f, "failed to write symcache"),
+            Self::WrongEndianness => write!(f, ",endianness mismatch"),
         }
     }
 }
