@@ -5,8 +5,8 @@ use std::io::{Seek, Write};
 use symbolic_common::{Arch, DebugId};
 use symbolic_debuginfo::{Function as SymbolicFunction, ObjectLike, Symbol};
 
-use super::writer::SymCacheConverter;
 use super::*;
+use crate::new::writer::SymCacheConverter;
 use crate::{SymCacheError, SymCacheErrorKind};
 
 impl<'data> SymCache<'data> {
@@ -21,9 +21,9 @@ impl<'data> SymCache<'data> {
     }
 
     /// An iterator over the functions in this SymCache.
-    pub fn functions(&self) -> FunctionIter<'data, '_> {
+    pub fn functions(&self) -> FunctionIter<'data> {
         FunctionIter {
-            cache: self,
+            cache: self.clone(),
             function_idx: 0,
         }
     }
@@ -55,12 +55,12 @@ impl<'data, 'cache> Iterator for FileIter<'data, 'cache> {
 }
 
 #[derive(Debug, Clone)]
-pub struct FunctionIter<'data, 'cache> {
-    cache: &'cache SymCache<'data>,
+pub struct FunctionIter<'data> {
+    cache: SymCache<'data>,
     function_idx: u32,
 }
 
-impl<'data, 'cache> Iterator for FunctionIter<'data, 'cache> {
+impl<'data> Iterator for FunctionIter<'data> {
     type Item = Function<'data>;
 
     fn next(&mut self) -> Option<Self::Item> {

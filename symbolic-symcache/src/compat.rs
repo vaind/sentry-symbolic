@@ -1,4 +1,4 @@
-use symbolic_common::{Arch, AsSelf, DebugId};
+use symbolic_common::{Arch, AsSelf, DebugId, Language, Name, NameMangling};
 
 use crate::{new, old, preamble, SymCacheError};
 
@@ -6,7 +6,7 @@ use crate::{new, old, preamble, SymCacheError};
 const SYMCACHE_VERSION_CUTOFF: u32 = 1_000;
 
 #[derive(Debug)]
-pub enum SymCacheInner<'data> {
+enum SymCacheInner<'data> {
     Old(old::SymCache<'data>),
     New(new::SymCache<'data>),
 }
@@ -31,7 +31,7 @@ impl<'data> SymCache<'data> {
 
     /// The version of the SymCache file format.
     pub fn version(&self) -> u32 {
-        match self.0 {
+        match &self.0 {
             SymCacheInner::New(symc) => symc.version(),
             SymCacheInner::Old(symc) => symc.version(),
         }
@@ -43,7 +43,7 @@ impl<'data> SymCache<'data> {
 
     /// The architecture of the symbol file.
     pub fn arch(&self) -> Arch {
-        match self.0 {
+        match &self.0 {
             SymCacheInner::New(symc) => symc.arch(),
             SymCacheInner::Old(symc) => symc.arch(),
         }
@@ -51,7 +51,7 @@ impl<'data> SymCache<'data> {
 
     /// The debug identifier of the cache file.
     pub fn debug_id(&self) -> DebugId {
-        match self.0 {
+        match &self.0 {
             SymCacheInner::New(symc) => symc.debug_id(),
             SymCacheInner::Old(symc) => symc.debug_id(),
         }
@@ -59,7 +59,7 @@ impl<'data> SymCache<'data> {
 
     /// Returns true if line information is included.
     pub fn has_line_info(&self) -> bool {
-        match self.0 {
+        match &self.0 {
             SymCacheInner::New(symc) => symc.has_line_info(),
             SymCacheInner::Old(symc) => symc.has_line_info(),
         }
@@ -67,7 +67,7 @@ impl<'data> SymCache<'data> {
 
     /// Returns true if file information is included.
     pub fn has_file_info(&self) -> bool {
-        match self.0 {
+        match &self.0 {
             SymCacheInner::New(symc) => symc.has_file_info(),
             SymCacheInner::Old(symc) => symc.has_file_info(),
         }
@@ -75,7 +75,7 @@ impl<'data> SymCache<'data> {
 
     /// Returns an iterator over all functions.
     pub fn functions(&self) -> Functions<'data> {
-        match self.0 {
+        match &self.0 {
             SymCacheInner::New(symc) => Functions(FunctionsInner::New(symc.functions())),
             SymCacheInner::Old(symc) => Functions(FunctionsInner::Old(symc.functions())),
         }
@@ -87,7 +87,7 @@ impl<'data> SymCache<'data> {
     /// more symbols.  If nothing is found then the return value will be
     /// an empty vector.
     pub fn lookup(&self, addr: u64) -> Result<Lookup<'data, '_>, SymCacheError> {
-        match self.0 {
+        match &self.0 {
             SymCacheInner::New(symc) => Ok(Lookup(LookupInner::New {
                 iter: symc.lookup(addr),
                 lookup_addr: addr,
@@ -111,15 +111,15 @@ impl<'slf, 'd: 'slf> AsSelf<'slf> for SymCache<'d> {
 impl From<new::Error> for old::SymCacheError {
     fn from(new_error: new::Error) -> Self {
         let kind = match new_error {
-            new::Error::BufferNotAligned | new::Error::BadFormatLength => {
-                old::SymCacheErrorKind::BadCacheFile
-            }
+            new::Error::BufferNotAligned
+            | new::Error::BadFormatLength
+            | new::Error::WrongEndianness => old::SymCacheErrorKind::BadCacheFile,
             new::Error::HeaderTooSmall => old::SymCacheErrorKind::BadFileHeader,
             new::Error::WrongFormat => old::SymCacheErrorKind::BadFileMagic,
             new::Error::WrongVersion => old::SymCacheErrorKind::UnsupportedVersion,
         };
 
-        Self { kind, source: None }
+        Self::from(kind)
     }
 }
 
@@ -138,8 +138,14 @@ impl<'data> Iterator for Functions<'data> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.0 {
-            LookupInner::Old(lookup) => lookup.next(),
-            LookupInner::New { iter, lookup_addr } => {}
+            FunctionsInner::Old(functions) => {
+                let function_old = functions.next()?;
+                Some(function_old.map(|f| Function(FunctionInner::Old(f))))
+            }
+            FunctionsInner::New(functions) => {
+                let function_new = functions.next()?;
+                Some(Ok(Function(FunctionInner::New(function_new))))
+            }
         }
     }
 }
@@ -147,54 +153,85 @@ impl<'data> Iterator for Functions<'data> {
 #[derive(Clone, Debug)]
 enum FunctionInner<'data> {
     Old(old::Function<'data>),
-    New,
+    New(new::Function<'data>),
 }
 
+/// A function in a `SymCache`.
 #[derive(Clone, Debug)]
 pub struct Function<'data>(FunctionInner<'data>);
 
 impl<'data> Function<'data> {
     /// The ID of the function.
     pub fn id(&self) -> usize {
-        self.index as usize
+        match &self.0 {
+            FunctionInner::Old(function) => function.id(),
+            // TODO: Is there something better we can return here?
+            // I doubt anyone actually cares about this.
+            FunctionInner::New(_) => usize::MAX,
+        }
     }
 
     /// The ID of the parent function, if this function was inlined.
     pub fn parent_id(&self) -> Option<usize> {
-        self.record.parent(self.id())
+        match &self.0 {
+            FunctionInner::Old(function) => function.parent_id(),
+            FunctionInner::New(_) => None,
+        }
     }
 
     /// The address where the function starts.
     pub fn address(&self) -> u64 {
-        self.record.addr_start()
+        match &self.0 {
+            FunctionInner::Old(function) => function.address(),
+            FunctionInner::New(function) => function.entry_pc() as u64,
+        }
     }
 
     /// The raw name of the function.
     pub fn symbol(&self) -> &'data str {
-        read_symbol(self.data, self.symbols, self.record.symbol_id())
-            .unwrap_or(None)
-            .unwrap_or("?")
+        match &self.0 {
+            FunctionInner::Old(function) => function.symbol(),
+            FunctionInner::New(function) => function.name().unwrap_or("?"),
+        }
     }
 
     /// The language of the function.
     pub fn language(&self) -> Language {
-        Language::from_u32(self.record.lang.into())
+        match &self.0 {
+            FunctionInner::Old(function) => function.language(),
+            FunctionInner::New(function) => function.language(),
+        }
     }
 
     /// The name of the function suitable for demangling.
     ///
     /// Use `symbolic::demangle` for demangling this symbol.
     pub fn name(&self) -> Name<'_> {
-        Name::new(self.symbol(), NameMangling::Unknown, self.language())
+        match &self.0 {
+            FunctionInner::Old(function) => function.name(),
+            FunctionInner::New(function) => Name::new(
+                function.name().unwrap_or("?"),
+                NameMangling::Unknown,
+                function.language(),
+            ),
+        }
     }
 
     /// The compilation dir of the function.
     pub fn compilation_dir(&self) -> &str {
-        self.record.comp_dir.read_str(self.data).unwrap_or("")
+        match &self.0 {
+            FunctionInner::Old(function) => function.compilation_dir(),
+            FunctionInner::New(function) => function.comp_dir().unwrap_or_default(),
+        }
     }
 
     /// An iterator over all lines in the function.
-    pub fn lines(&self) -> Lines<'data> {}
+    pub fn lines(&self) -> old::Lines<'data> {
+        match &self.0 {
+            FunctionInner::Old(function) => function.lines(),
+            FunctionInner::New(_) => unimplemented!(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
