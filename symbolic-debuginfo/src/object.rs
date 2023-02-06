@@ -639,9 +639,9 @@ enum ArchiveInner<'d> {
 
 /// A generic archive that can contain one or more object files.
 ///
-/// Effectively, this will only contain a single object for all file types other than `MachO`. Mach
-/// objects can either be single object files or so-called _fat_ files that contain multiple objects
-/// per architecture.
+/// Effectively, this will usually contain a single object for all file types other than:
+/// * MachO - can either be single object or a 'fat' archive with an object for each architecture.
+/// * PE - can either be a single object or have an embedded Portable PDB, extracted here.
 #[derive(Debug)]
 pub struct Archive<'d>(ArchiveInner<'d>);
 
@@ -668,7 +668,23 @@ impl<'d> Archive<'d> {
                 Archive(inner)
             }
             FileFormat::Pdb => Archive(ArchiveInner::Pdb(MonoArchive::new(data))),
-            FileFormat::Pe => Archive(ArchiveInner::Pe(MonoArchive::new(data))),
+            FileFormat::Pe => {
+                let embedded_ppdb = PeObject::parse(data)
+                    .and_then(|o| o.embedded_ppdb())
+                    .map_err(ObjectError::transparent)?;
+                Archive(match embedded_ppdb {
+                    // Standard PE file
+                    None => ArchiveInner::Pe(MonoArchive::new(data)),
+                    // PE file with embedded Portable PDB - return only the Portable PDB.
+                    Some(embedded_ppdb) => {
+                        let ppdb_data = embedded_ppdb
+                            .decompress()
+                            .map_err(ObjectError::transparent)?;
+                        // TODO wrapper with owned data
+                        // ArchiveInner::PortablePdb(MonoArchive::new(data))
+                    }
+                })
+            }
             FileFormat::SourceBundle => Archive(ArchiveInner::SourceBundle(MonoArchive::new(data))),
             FileFormat::Wasm => Archive(ArchiveInner::Wasm(MonoArchive::new(data))),
             FileFormat::PortablePdb => Archive(ArchiveInner::PortablePdb(MonoArchive::new(data))),
